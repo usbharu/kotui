@@ -1,5 +1,6 @@
 package dev.usbharu.kotui.render
 
+import dev.usbharu.kotui.compose.widget.TerminalImage
 import dev.usbharu.kotui.core.Style
 import dev.usbharu.kotui.utils.forEachCodePoint
 
@@ -11,8 +12,19 @@ data class Cell(
     val isContinuation: Boolean = false
 )
 
+/** Region reserved for a pixel image, anchored at cell coordinate ([x], [y]). */
+data class ImagePlacement(
+    val x: Int,
+    val y: Int,
+    val cellWidth: Int,
+    val cellHeight: Int,
+    val image: TerminalImage,
+    val zIndex: Int,
+)
+
 class RenderBuffer(val width: Int, val height: Int) {
     private val cells: Array<Array<Cell>> = Array(height) { Array(width) { Cell() } }
+    private val placements: MutableList<ImagePlacement> = mutableListOf()
 
     fun set(x: Int, y: Int, char: Char, style: Style, zIndex: Int) {
         setGrapheme(x, y, char.toString(), 1, style, zIndex)
@@ -135,5 +147,32 @@ class RenderBuffer(val width: Int, val height: Int) {
                 cells[y][x] = Cell()
             }
         }
+        placements.clear()
     }
+
+    /**
+     * Reserves the rectangle [x, x + image.cellWidth) × [y, y + image.cellHeight)
+     * for a sixel image drawn at [zIndex]. The cells are blanked with spaces at
+     * [zIndex] so lower-priority content is cleared and higher-priority overlays
+     * can still paint on top via the normal z-index rules. The caller decides
+     * whether to additionally paint a fallback string depending on whether the
+     * terminal supports sixel.
+     */
+    fun placeImage(x: Int, y: Int, image: TerminalImage, zIndex: Int) {
+        val w = image.cellWidth
+        val h = image.cellHeight
+        for (dy in 0 until h) {
+            val cy = y + dy
+            if (cy < 0 || cy >= height) continue
+            for (dx in 0 until w) {
+                val cx = x + dx
+                if (cx < 0 || cx >= width) continue
+                if (zIndex < cells[cy][cx].zIndex) continue
+                cells[cy][cx] = Cell(content = " ", zIndex = zIndex)
+            }
+        }
+        placements.add(ImagePlacement(x, y, w, h, image, zIndex))
+    }
+
+    fun imagePlacements(): List<ImagePlacement> = placements
 }

@@ -6,6 +6,8 @@ import dev.usbharu.kotui.core.Rect
 import dev.usbharu.kotui.core.Style
 import dev.usbharu.kotui.render.RenderBuffer
 import dev.usbharu.kotui.utils.Ansi
+import dev.usbharu.kotui.utils.SixelSupport
+import dev.usbharu.kotui.utils.TerminalCaps
 import dev.usbharu.kotui.utils.takeDisplayWidth
 
 class TuiRenderer(private val screenWidth: Int, private val screenHeight: Int) {
@@ -40,6 +42,17 @@ class TuiRenderer(private val screenWidth: Int, private val screenHeight: Int) {
             buffer.writeString(node.bounds.x, node.bounds.y, clipped, activeStyle, effectiveZ)
             node.textHighlights?.forEach { hl ->
                 applyHighlight(node.bounds.x, node.bounds.y, hl, activeStyle, effectiveZ, node.bounds.width)
+            }
+        }
+
+        node.image?.let { img ->
+            buffer.placeImage(node.bounds.x, node.bounds.y, img, effectiveZ)
+            val caps = SixelSupport.cached ?: TerminalCaps.UNSUPPORTED
+            if (!caps.kittySupported && !caps.sixelSupported) {
+                img.fallbackText?.let { text ->
+                    val clipped = text.takeDisplayWidth(img.cellWidth)
+                    buffer.writeString(node.bounds.x, node.bounds.y, clipped, activeStyle, effectiveZ)
+                }
             }
         }
 
@@ -104,6 +117,14 @@ class TuiRenderer(private val screenWidth: Int, private val screenHeight: Int) {
     private fun flush(cursorNode: TuiNode?) {
         val sb = StringBuilder()
         sb.append(Ansi.CURSOR_HIDE)
+
+        // kgp images are persistent overlays, unlike sixel which paints into
+        // the cell buffer. Wipe any lingering images from the previous frame
+        // before we redraw so navigation and animation work the same way.
+        val caps = SixelSupport.cached ?: TerminalCaps.UNSUPPORTED
+        if (caps.kittySupported) {
+            sb.append(dev.usbharu.kotui.utils.Kitty.DELETE_ALL)
+        }
         var lastStyle: Style? = null
         for (y in 0 until screenHeight) {
             sb.append(Ansi.cursorTo(y + 1, 1))
@@ -119,6 +140,23 @@ class TuiRenderer(private val screenWidth: Int, private val screenHeight: Int) {
             }
         }
         sb.append(Ansi.RESET)
+
+        if (caps.kittySupported || caps.sixelSupported) {
+            for (p in buffer.imagePlacements()) {
+                // Clamp anchor into the visible viewport so terminals do not drop
+                // the entire escape when the composable happens to overflow the
+                // screen (the image itself may still be partially clipped).
+                val row = (p.y + 1).coerceIn(1, screenHeight)
+                val col = (p.x + 1).coerceIn(1, screenWidth)
+                sb.append(Ansi.cursorTo(row, col))
+                sb.append(Ansi.RESET)
+                if (caps.kittySupported) {
+                    sb.append(p.image.kitty)
+                } else {
+                    sb.append(p.image.sixel)
+                }
+            }
+        }
 
         if (cursorNode != null) {
             val col = cursorNode.bounds.x + (cursorNode.cursorCol ?: 0) + 1  // ANSI is 1-based

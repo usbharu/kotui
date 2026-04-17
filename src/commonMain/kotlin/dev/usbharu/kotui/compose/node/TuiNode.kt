@@ -48,6 +48,13 @@ class TuiNode(val tag: String = "Node") {
      */
     var textHighlights: List<TextHighlight>? = null
 
+    /**
+     * Pixel-based image to emit (via sixel or Kitty graphics protocol) after
+     * the regular cell buffer has been flushed. The node's [bounds] dictates
+     * where the image is anchored in cell coordinates.
+     */
+    var image: dev.usbharu.kotui.compose.widget.TerminalImage? = null
+
     fun applyModifier(modifier: Modifier) {
         modifier.foldIn(Unit) { _, element -> element.apply(this) }
     }

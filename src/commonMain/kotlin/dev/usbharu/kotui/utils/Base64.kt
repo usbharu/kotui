@@ -3,11 +3,14 @@ package dev.usbharu.kotui.utils
 internal object Base64 {
     private const val TABLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-    fun encode(text: String): String {
-        val bytes = text.encodeToByteArray()
-        val out = StringBuilder((bytes.size + 2) / 3 * 4)
-        var i = 0
-        while (i + 3 <= bytes.size) {
+    fun encode(text: String): String = encode(text.encodeToByteArray())
+
+    fun encode(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size - offset): String {
+        require(offset >= 0 && length >= 0 && offset + length <= bytes.size)
+        val out = StringBuilder((length + 2) / 3 * 4)
+        var i = offset
+        val end = offset + length
+        while (i + 3 <= end) {
             val b0 = bytes[i].toInt() and 0xFF
             val b1 = bytes[i + 1].toInt() and 0xFF
             val b2 = bytes[i + 2].toInt() and 0xFF
@@ -17,7 +20,7 @@ internal object Base64 {
             out.append(TABLE[b2 and 0x3F])
             i += 3
         }
-        val rem = bytes.size - i
+        val rem = end - i
         if (rem == 1) {
             val b0 = bytes[i].toInt() and 0xFF
             out.append(TABLE[b0 ushr 2])
