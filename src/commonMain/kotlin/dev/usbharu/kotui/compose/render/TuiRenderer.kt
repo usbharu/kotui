@@ -1,0 +1,142 @@
+package dev.usbharu.kotui.compose.render
+
+import dev.usbharu.kotui.compose.focus.FocusManager
+import dev.usbharu.kotui.compose.node.TuiNode
+import dev.usbharu.kotui.core.Rect
+import dev.usbharu.kotui.core.Style
+import dev.usbharu.kotui.render.RenderBuffer
+import dev.usbharu.kotui.utils.Ansi
+import dev.usbharu.kotui.utils.takeDisplayWidth
+
+class TuiRenderer(private val screenWidth: Int, private val screenHeight: Int) {
+    private val buffer = RenderBuffer(screenWidth, screenHeight)
+
+    fun render(root: TuiNode, focusManager: FocusManager) {
+        buffer.clear()
+        renderNode(root, 0, focusManager)
+        val cursorNode = findCursorNode(root, focusManager)
+        flush(cursorNode)
+    }
+
+    private fun renderNode(node: TuiNode, parentZ: Int, focusManager: FocusManager) {
+        val effectiveZ = parentZ + node.zIndex
+        val isFocused = node.focusable && focusManager.isFocused(node.focusId)
+        val activeStyle = if (isFocused) (node.focusedStyle ?: node.style) else node.style
+
+        if (node.drawBorder) {
+            renderBorder(node.bounds, activeStyle, node.borderTitle, effectiveZ)
+        }
+
+        node.fillChar?.let { ch ->
+            for (yy in node.bounds.y until node.bounds.y + node.bounds.height) {
+                for (xx in node.bounds.x until node.bounds.x + node.bounds.width) {
+                    buffer.set(xx, yy, ch, activeStyle, effectiveZ)
+                }
+            }
+        }
+
+        node.text?.let { text ->
+            val clipped = text.takeDisplayWidth(node.bounds.width)
+            buffer.writeString(node.bounds.x, node.bounds.y, clipped, activeStyle, effectiveZ)
+            node.textHighlights?.forEach { hl ->
+                applyHighlight(node.bounds.x, node.bounds.y, hl, activeStyle, effectiveZ, node.bounds.width)
+            }
+        }
+
+        for (child in node.children) {
+            renderNode(child, effectiveZ, focusManager)
+        }
+    }
+
+    private fun renderBorder(b: Rect, style: Style, title: String?, z: Int) {
+        val (x, y, w, h) = b
+        buffer.set(x, y, '+', style, z)
+        for (col in 1 until w - 1) buffer.set(x + col, y, '-', style, z)
+        if (w > 1) buffer.set(x + w - 1, y, '+', style, z)
+
+        if (!title.isNullOrEmpty()) {
+            buffer.writeString(x + 2, y, " $title ".takeDisplayWidth((w - 4).coerceAtLeast(0)), style, z)
+        }
+
+        for (row in 1 until h - 1) {
+            buffer.set(x, y + row, '|', style, z)
+            for (col in 1 until w - 1) buffer.set(x + col, y + row, ' ', style, z)
+            if (w > 1) buffer.set(x + w - 1, y + row, '|', style, z)
+        }
+
+        if (h > 1) {
+            buffer.set(x, y + h - 1, '+', style, z)
+            for (col in 1 until w - 1) buffer.set(x + col, y + h - 1, '-', style, z)
+            if (w > 1) buffer.set(x + w - 1, y + h - 1, '+', style, z)
+        }
+    }
+
+    private fun applyHighlight(nodeX: Int, nodeY: Int, hl: dev.usbharu.kotui.compose.node.TextHighlight, base: Style, zIndex: Int, nodeWidth: Int) {
+        val start = hl.startCol.coerceAtLeast(0)
+        val end = hl.endCol.coerceAtMost(nodeWidth)
+        for (dx in start until end) {
+            val x = nodeX + dx
+            val existing = buffer.get(x, nodeY)
+            if (existing.isContinuation) continue
+            val merged = base.copy(
+                fg = hl.style.fg ?: existing.style.fg ?: base.fg,
+                bg = hl.style.bg ?: existing.style.bg ?: base.bg,
+                bold = hl.style.bold || existing.style.bold,
+                underline = hl.style.underline || existing.style.underline,
+                reverse = hl.style.reverse || existing.style.reverse,
+            )
+            val content = existing.content
+            val width = if (existing.width == 0) 1 else existing.width
+            buffer.setGrapheme(x, nodeY, if (content.isEmpty()) " " else content, width, merged, zIndex)
+        }
+    }
+
+    private fun findCursorNode(node: TuiNode, focusManager: FocusManager): TuiNode? {
+        if (node.focusable && focusManager.isFocused(node.focusId) && node.cursorCol != null) {
+            return node
+        }
+        for (child in node.children) {
+            findCursorNode(child, focusManager)?.let { return it }
+        }
+        return null
+    }
+
+    private fun flush(cursorNode: TuiNode?) {
+        val sb = StringBuilder()
+        sb.append(Ansi.CURSOR_HIDE)
+        var lastStyle: Style? = null
+        for (y in 0 until screenHeight) {
+            sb.append(Ansi.cursorTo(y + 1, 1))
+            for (x in 0 until screenWidth) {
+                val cell = buffer.get(x, y)
+                if (cell.isContinuation) continue
+                if (cell.style != lastStyle) {
+                    sb.append(Ansi.RESET)
+                    sb.append(styleToAnsi(cell.style))
+                    lastStyle = cell.style
+                }
+                sb.append(cell.content)
+            }
+        }
+        sb.append(Ansi.RESET)
+
+        if (cursorNode != null) {
+            val col = cursorNode.bounds.x + (cursorNode.cursorCol ?: 0) + 1  // ANSI is 1-based
+            val row = cursorNode.bounds.y + 1
+            sb.append(Ansi.cursorTo(row, col))
+            sb.append(Ansi.CURSOR_SHOW)
+        } else {
+            sb.append(Ansi.CURSOR_HIDE)
+        }
+
+        print(sb.toString())
+    }
+
+    private fun styleToAnsi(style: Style): String = buildString {
+        style.fg?.let { append(it) }
+        style.bg?.let { append(it) }
+        if (style.bold) append(Ansi.BOLD)
+        if (style.underline) append(Ansi.UNDERLINE)
+        if (style.reverse) append(Ansi.REVERSE)
+    }
+}
