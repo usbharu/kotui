@@ -8,6 +8,7 @@ import dev.usbharu.kotui.compose.runtime.runTui
 import dev.usbharu.kotui.compose.widget.*
 import dev.usbharu.kotui.core.Style
 import dev.usbharu.kotui.utils.Ansi
+import dev.usbharu.kotui.utils.SixelSupport
 
 @Composable
 fun App() {
@@ -24,7 +25,10 @@ fun App() {
     if (keyEvent?.char == 's' && screen == "list") {
         screen = "showcase"
     }
-    if (keyEvent?.char == '\u001B' && screen == "showcase") {
+    if (keyEvent?.char == 'i' && screen == "list") {
+        screen = "image"
+    }
+    if (keyEvent?.char == '\u001B' && (screen == "showcase" || screen == "image")) {
         screen = "list"
     }
 
@@ -46,6 +50,33 @@ fun App() {
             onCancel = { screen = "list" }
         )
         "showcase" -> Showcase()
+        "image" -> ImageTest()
+    }
+}
+
+@Composable
+fun ImageTest() {
+    val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
+    val caps = SixelSupport.cached
+    val status = when {
+        caps == null -> "not probed"
+        caps.kittySupported -> "kitty gfx (cell ${caps.cellPixelWidth}x${caps.cellPixelHeight}px)"
+        caps.sixelSupported -> "sixel (cell ${caps.cellPixelWidth}x${caps.cellPixelHeight}px)"
+        else -> "not supported"
+    }
+    val image = remember { demoGradient() }
+    Column {
+        Text("  === Sixel image test ===", Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)))
+        Text("  Sixel: $status", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
+        Text(
+            "  Image: ${image.pixelWidth}x${image.pixelHeight}px  (" +
+                "${image.cellWidth}x${image.cellHeight} cells at ${image.cellPixelWidth}x${image.cellPixelHeight})",
+            dim
+        )
+        Text("", dim)
+        Image(image)
+        Text("", dim)
+        Text("  Esc=Back", dim)
     }
 }
 
@@ -89,7 +120,7 @@ fun TaskList(
                 Button("Help ?") { showHelp = !showHelp }
             }
 
-            Text("  Tab=Focus  Enter=Action  ?=Help  s=Showcase  q=Quit", dim)
+            Text("  Tab=Focus  ?=Help  s=Showcase  i=Image  q=Quit", dim)
         }
 
         if (showHelp) {
@@ -143,14 +174,6 @@ fun Showcase() {
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
     val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
 
-    var spinnerFrame by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(120)
-            spinnerFrame++
-        }
-    }
-
     Column {
         Text("  === Component Showcase ===", title)
         Divider()
@@ -172,11 +195,44 @@ fun Showcase() {
 
         Spacer(Modifier.height(1))
 
-        Text("  Spinner:", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
+        Text("  Spinners (auto-animated):", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
         Row {
-            Text("  loading ")
-            Spinner(frame = spinnerFrame, modifier = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)))
-            Text("  press any key to advance frame")
+            Text("  braille ")
+            Spinner(
+                chars = SpinnerFrames.BRAILLE,
+                intervalMs = 80,
+                modifier = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)),
+            )
+            Text("   classic ")
+            Spinner(
+                chars = SpinnerFrames.CLASSIC,
+                intervalMs = 120,
+                modifier = Modifier.style(Style(fg = Ansi.FG_GREEN, bold = true)),
+            )
+            Text("   arrow ")
+            Spinner(
+                chars = SpinnerFrames.ARROW,
+                intervalMs = 100,
+                modifier = Modifier.style(Style(fg = Ansi.FG_MAGENTA, bold = true)),
+            )
+            Text("   circle ")
+            Spinner(
+                chars = SpinnerFrames.CIRCLE,
+                intervalMs = 150,
+                modifier = Modifier.style(Style(fg = Ansi.FG_YELLOW, bold = true)),
+            )
+            Text("   bar ")
+            Spinner(
+                chars = SpinnerFrames.BAR,
+                intervalMs = 70,
+                modifier = Modifier.style(Style(fg = Ansi.FG_BRIGHT_CYAN, bold = true)),
+            )
+            Text("   dots ")
+            Spinner(
+                chars = SpinnerFrames.DOTS,
+                intervalMs = 180,
+                modifier = Modifier.style(Style(fg = Ansi.FG_BRIGHT_MAGENTA)),
+            )
         }
 
         Divider(char = '=')
@@ -197,6 +253,22 @@ fun Showcase() {
         Divider()
         Text("  Esc=Back to list", dim)
     }
+}
+
+private fun demoGradient(): TerminalImage {
+    val w = 64
+    val h = 32
+    val rgba = ByteArray(w * h * 4)
+    for (y in 0 until h) {
+        for (x in 0 until w) {
+            val base = (y * w + x) * 4
+            rgba[base]     = ((x * 255) / (w - 1)).toByte()
+            rgba[base + 1] = ((y * 255) / (h - 1)).toByte()
+            rgba[base + 2] = (((x + y) * 255) / (w + h - 2)).toByte()
+            rgba[base + 3] = 0xFF.toByte()
+        }
+    }
+    return TerminalImage(rgba, w, h, fallbackText = "[gradient]")
 }
 
 fun main() = runTui { App() }
