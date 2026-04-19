@@ -1,0 +1,3 @@
+[submodule "third-party/markdown-kt"]
+	path = third-party/markdown-kt
+	url = https://github.com/usbharu/markdown-kt.git
