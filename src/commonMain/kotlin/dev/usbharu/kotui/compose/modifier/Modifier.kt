@@ -40,6 +40,8 @@ private class FocusableMod : Modifier.Element { override fun apply(node: TuiNode
 private class FocusScopeMod : Modifier.Element { override fun apply(node: TuiNode) { node.focusScope = true } }
 private class ZIndexMod(val z: Int) : Modifier.Element { override fun apply(node: TuiNode) { node.zIndex = z } }
 private class GapMod(val g: Int) : Modifier.Element { override fun apply(node: TuiNode) { node.layoutGap = g } }
+private class FlexGrowMod(val v: Float) : Modifier.Element { override fun apply(node: TuiNode) { node.flexGrow = v } }
+private class FlexBasisMod(val v: Int) : Modifier.Element { override fun apply(node: TuiNode) { node.flexBasis = v } }
 private class OffsetMod(val x: Int, val y: Int) : Modifier.Element {
     override fun apply(node: TuiNode) { node.bounds = Rect(x, y, node.bounds.width, node.bounds.height) }
 }
@@ -56,5 +58,8 @@ fun Modifier.focusable(): Modifier = then(FocusableMod())
 fun Modifier.focusScope(): Modifier = then(FocusScopeMod())
 fun Modifier.zIndex(n: Int): Modifier = then(ZIndexMod(n))
 fun Modifier.gap(n: Int): Modifier = then(GapMod(n))
+fun Modifier.weight(value: Float): Modifier = then(FlexGrowMod(value))
+fun Modifier.flexGrow(value: Float): Modifier = then(FlexGrowMod(value))
+fun Modifier.flexBasis(size: Int): Modifier = then(FlexBasisMod(size))
 fun Modifier.offset(x: Int, y: Int): Modifier = then(OffsetMod(x, y))
 fun Modifier.onKeyEvent(handler: (KeyEvent) -> Boolean): Modifier = then(KeyEventMod(handler))

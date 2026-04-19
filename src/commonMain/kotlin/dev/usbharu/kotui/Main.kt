@@ -1,9 +1,11 @@
 package dev.usbharu.kotui
 
 import androidx.compose.runtime.*
+import dev.usbharu.kotui.compose.layout.AlignItems
+import dev.usbharu.kotui.compose.layout.JustifyContent
 import dev.usbharu.kotui.compose.modifier.*
-import dev.usbharu.kotui.compose.runtime.LocalKeyEvent
 import dev.usbharu.kotui.compose.runtime.LocalQuit
+import dev.usbharu.kotui.compose.runtime.onKey
 import dev.usbharu.kotui.compose.runtime.runTui
 import dev.usbharu.kotui.compose.widget.*
 import dev.usbharu.kotui.core.Style
@@ -17,83 +19,79 @@ fun App() {
     var editIndex by remember { mutableStateOf(-1) }
 
     val quit = LocalQuit.current
-    val keyEvent = LocalKeyEvent.current
 
-    if (keyEvent?.char == 'q' && screen == "list") {
-        quit()
-    }
-    if (keyEvent?.char == 's' && screen == "list") {
-        screen = "showcase"
-    }
-    if (keyEvent?.char == 'i' && screen == "list") {
-        screen = "image"
-    }
-    if (keyEvent?.char == '\u001B' && (screen == "showcase" || screen == "image")) {
-        screen = "list"
+    // Global shortcuts while we're not in the editor (which needs text input).
+    if (screen != "editor") {
+        onKey { ev ->
+            when (ev.char) {
+                'q' -> quit()
+                's' -> screen = "showcase"
+                'i' -> screen = "image"
+                'f' -> screen = "flex"
+                'l' -> screen = "list"
+                '\u001B' -> if (screen != "list") screen = "list"
+            }
+        }
     }
 
-    when (screen) {
-        "list" -> TaskList(
-            tasks = tasks,
-            onAdd = { screen = "editor"; editIndex = -1 },
-            onEdit = { screen = "editor"; editIndex = it },
-            onDelete = { i -> tasks = tasks.filterIndexed { idx, _ -> idx != i } }
-        )
-        "editor" -> TaskEditor(
-            initialText = if (editIndex >= 0) tasks[editIndex] else "",
-            onSave = { text ->
-                tasks = if (editIndex >= 0)
-                    tasks.mapIndexed { i, t -> if (i == editIndex) text else t }
-                else tasks + text
-                screen = "list"
-            },
-            onCancel = { screen = "list" }
-        )
-        "showcase" -> Showcase()
-        "image" -> ImageTest()
+    AppChrome(screen) {
+        when (screen) {
+            "list" -> TaskList(
+                tasks = tasks,
+                onAdd = { screen = "editor"; editIndex = -1 },
+                onEdit = { screen = "editor"; editIndex = it },
+                onDelete = { i -> tasks = tasks.filterIndexed { idx, _ -> idx != i } },
+            )
+            "editor" -> TaskEditor(
+                initialText = if (editIndex >= 0) tasks[editIndex] else "",
+                onSave = { text ->
+                    tasks = if (editIndex >= 0)
+                        tasks.mapIndexed { i, t -> if (i == editIndex) text else t }
+                    else tasks + text
+                    screen = "list"
+                },
+                onCancel = { screen = "list" },
+            )
+            "showcase" -> Showcase()
+            "image" -> ImageTest()
+            "flex" -> FlexShowcase()
+        }
     }
 }
 
 @Composable
-fun ImageTest() {
-    val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
-    val caps = SixelSupport.cached
-    val status = when {
-        caps == null -> "not probed"
-        caps.kittySupported -> "kitty gfx (cell ${caps.cellPixelWidth}x${caps.cellPixelHeight}px)"
-        caps.sixelSupported -> "sixel (cell ${caps.cellPixelWidth}x${caps.cellPixelHeight}px)"
-        else -> "not supported"
-    }
-    val image = remember { demoGradient() }
-    Column {
-        Text("  === Sixel image test ===", Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)))
-        Text("  Sixel: $status", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
-        Text(
-            "  Image: ${image.pixelWidth}x${image.pixelHeight}px  (" +
-                "${image.cellWidth}x${image.cellHeight} cells at ${image.cellPixelWidth}x${image.cellPixelHeight})",
-            dim
-        )
-        Text("", dim)
-        Image(image)
-        Text("", dim)
-        Text("  Esc=Back", dim)
+private fun AppChrome(screen: String, content: @Composable () -> Unit) {
+    val headerStyle = Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_CYAN, bold = true)
+    val footerStyle = Style(fg = Ansi.FG_BRIGHT_BLACK)
+
+    Column(gap = 0) {
+        Row(modifier = Modifier.height(1).style(headerStyle), justifyContent = JustifyContent.SpaceBetween) {
+            Text(" kotui — fullscreen + flex TUI ", Modifier.style(headerStyle))
+            Text(" screen: $screen ", Modifier.style(headerStyle))
+        }
+
+        Box(modifier = Modifier.weight(1f).flexBasis(0)) {
+            content()
+        }
+
+        Row(modifier = Modifier.height(1), justifyContent = JustifyContent.SpaceBetween) {
+            Text(" l=list  s=showcase  i=image  f=flex ", Modifier.style(footerStyle))
+            Text(" Esc=back  q=quit ", Modifier.style(footerStyle))
+        }
     }
 }
 
 @Composable
-fun TaskList(
+private fun TaskList(
     tasks: List<String>,
     onAdd: () -> Unit,
     onEdit: (Int) -> Unit,
-    onDelete: (Int) -> Unit
+    onDelete: (Int) -> Unit,
 ) {
     var showHelp by remember { mutableStateOf(false) }
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
 
-    val keyEvent = LocalKeyEvent.current
-    if (keyEvent?.char == '?') {
-        showHelp = !showHelp
-    }
+    onKey { ev -> if (ev.char == '?') showHelp = !showHelp }
 
     Box {
         Column {
@@ -120,7 +118,7 @@ fun TaskList(
                 Button("Help ?") { showHelp = !showHelp }
             }
 
-            Text("  Tab=Focus  ?=Help  s=Showcase  i=Image  q=Quit", dim)
+            Text("  Tab=Focus  ?=Help", dim)
         }
 
         if (showHelp) {
@@ -130,7 +128,7 @@ fun TaskList(
                 Text(" Tab     - Cycle focus within scope", ms)
                 Text(" Enter   - Activate button", ms)
                 Text(" ?       - Toggle help", ms)
-                Text(" q       - Quit (from list screen)", ms)
+                Text(" q       - Quit", ms)
                 Text("", ms)
                 Text(" Z-index overlay + focusScope!", Modifier.style(Style(fg = Ansi.FG_BRIGHT_CYAN, bg = Ansi.BG_BLUE, bold = true)))
                 Button("Close") { showHelp = false }
@@ -140,14 +138,11 @@ fun TaskList(
 }
 
 @Composable
-fun TaskEditor(initialText: String, onSave: (String) -> Unit, onCancel: () -> Unit) {
+private fun TaskEditor(initialText: String, onSave: (String) -> Unit, onCancel: () -> Unit) {
     var text by remember { mutableStateOf(initialText) }
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
 
-    val keyEvent = LocalKeyEvent.current
-    if (keyEvent?.char == '\u001B') {
-        onCancel()
-    }
+    onKey { ev -> if (ev.char == '\u001B') onCancel() }
 
     Column(modifier = Modifier.focusScope()) {
         Text("  === Task Editor ===", Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)))
@@ -158,7 +153,7 @@ fun TaskEditor(initialText: String, onSave: (String) -> Unit, onCancel: () -> Un
             onValueChange = { text = it },
             placeholder = "Enter task name...",
             modifier = Modifier.width(60),
-            onSubmit = { if (text.isNotBlank()) onSave(text) }
+            onSubmit = { if (text.isNotBlank()) onSave(text) },
         )
         Text("  " + "-".repeat(50), dim)
         Row {
@@ -170,7 +165,7 @@ fun TaskEditor(initialText: String, onSave: (String) -> Unit, onCancel: () -> Un
 }
 
 @Composable
-fun Showcase() {
+private fun Showcase() {
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
     val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
 
@@ -198,41 +193,23 @@ fun Showcase() {
         Text("  Spinners (auto-animated):", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
         Row {
             Text("  braille ")
-            Spinner(
-                chars = SpinnerFrames.BRAILLE,
-                intervalMs = 80,
-                modifier = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)),
-            )
+            Spinner(chars = SpinnerFrames.BRAILLE, intervalMs = 80,
+                modifier = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)))
             Text("   classic ")
-            Spinner(
-                chars = SpinnerFrames.CLASSIC,
-                intervalMs = 120,
-                modifier = Modifier.style(Style(fg = Ansi.FG_GREEN, bold = true)),
-            )
+            Spinner(chars = SpinnerFrames.CLASSIC, intervalMs = 120,
+                modifier = Modifier.style(Style(fg = Ansi.FG_GREEN, bold = true)))
             Text("   arrow ")
-            Spinner(
-                chars = SpinnerFrames.ARROW,
-                intervalMs = 100,
-                modifier = Modifier.style(Style(fg = Ansi.FG_MAGENTA, bold = true)),
-            )
+            Spinner(chars = SpinnerFrames.ARROW, intervalMs = 100,
+                modifier = Modifier.style(Style(fg = Ansi.FG_MAGENTA, bold = true)))
             Text("   circle ")
-            Spinner(
-                chars = SpinnerFrames.CIRCLE,
-                intervalMs = 150,
-                modifier = Modifier.style(Style(fg = Ansi.FG_YELLOW, bold = true)),
-            )
+            Spinner(chars = SpinnerFrames.CIRCLE, intervalMs = 150,
+                modifier = Modifier.style(Style(fg = Ansi.FG_YELLOW, bold = true)))
             Text("   bar ")
-            Spinner(
-                chars = SpinnerFrames.BAR,
-                intervalMs = 70,
-                modifier = Modifier.style(Style(fg = Ansi.FG_BRIGHT_CYAN, bold = true)),
-            )
+            Spinner(chars = SpinnerFrames.BAR, intervalMs = 70,
+                modifier = Modifier.style(Style(fg = Ansi.FG_BRIGHT_CYAN, bold = true)))
             Text("   dots ")
-            Spinner(
-                chars = SpinnerFrames.DOTS,
-                intervalMs = 180,
-                modifier = Modifier.style(Style(fg = Ansi.FG_BRIGHT_MAGENTA)),
-            )
+            Spinner(chars = SpinnerFrames.DOTS, intervalMs = 180,
+                modifier = Modifier.style(Style(fg = Ansi.FG_BRIGHT_MAGENTA)))
         }
 
         Divider(char = '=')
@@ -249,9 +226,135 @@ fun Showcase() {
                 }
             }
         }
+    }
+}
 
-        Divider()
-        Text("  Esc=Back to list", dim)
+@Composable
+private fun ImageTest() {
+    val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
+    val caps = SixelSupport.cached
+    val status = when {
+        caps == null -> "not probed"
+        caps.kittySupported -> "kitty gfx (cell ${caps.cellPixelWidth}x${caps.cellPixelHeight}px)"
+        caps.sixelSupported -> "sixel (cell ${caps.cellPixelWidth}x${caps.cellPixelHeight}px)"
+        else -> "not supported"
+    }
+    val image = remember { demoGradient() }
+    Column {
+        Text("  === Image test ===", Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)))
+        Text("  Support: $status", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
+        Text(
+            "  Image: ${image.pixelWidth}x${image.pixelHeight}px  (" +
+                "${image.cellWidth}x${image.cellHeight} cells at ${image.cellPixelWidth}x${image.cellPixelHeight})",
+            dim,
+        )
+        Spacer(Modifier.height(1))
+        Image(image)
+    }
+}
+
+@Composable
+private fun FlexShowcase() {
+    var selected by remember { mutableStateOf(0) }
+    onKey { ev ->
+        when (ev.char) {
+            'j' -> selected = (selected + 1).coerceAtMost(2)
+            'k' -> selected = (selected - 1).coerceAtLeast(0)
+        }
+    }
+
+    val accent = Style(fg = Ansi.FG_CYAN, bold = true)
+    val dim = Style(fg = Ansi.FG_BRIGHT_BLACK)
+
+    Row(gap = 1, alignItems = AlignItems.Stretch) {
+        // Sidebar — fixed flex basis, no grow.
+        Panel(title = "Menu", modifier = Modifier.flexBasis(22)) {
+            listOf("Overview", "Details", "Settings").forEachIndexed { i, label ->
+                val s = if (i == selected) accent else Style()
+                Text(if (i == selected) "  > $label" else "    $label", Modifier.style(s))
+            }
+            Spacer(Modifier.height(1))
+            Text(" j/k to navigate", Modifier.style(dim))
+        }
+
+        // Main content grows to fill remaining width.
+        Panel(title = "Main", modifier = Modifier.weight(1f).flexBasis(0)) {
+            when (selected) {
+                0 -> FlexOverview()
+                1 -> FlexDetails()
+                else -> FlexSettings()
+            }
+        }
+
+        // Status pane — fixed width.
+        Panel(title = "Info", modifier = Modifier.width(22)) {
+            Text(" selected: $selected", Modifier.style(dim))
+            Text(" resize me →", Modifier.style(dim))
+            Spacer(Modifier.height(1))
+            Text(" ok", Modifier.style(Style(fg = Ansi.FG_GREEN, bold = true)))
+        }
+    }
+}
+
+@Composable
+private fun FlexOverview() {
+    Column {
+        Text(" weight(1f) / flexBasis / justify / align",
+            Modifier.style(Style(fg = Ansi.FG_BRIGHT_WHITE, bold = true)))
+        Spacer(Modifier.height(1))
+        Text(" Sidebar: Modifier.flexBasis(22) — fixed starting width.")
+        Text(" Main:    Modifier.weight(1f) — absorbs the remaining width.")
+        Text(" Info:    Modifier.width(22) — fixed, doesn't flex.")
+        Spacer(Modifier.height(1))
+        Text(" Resize the terminal — layout reflows in real time.",
+            Modifier.style(Style(fg = Ansi.FG_YELLOW)))
+    }
+}
+
+@Composable
+private fun FlexDetails() {
+    Column(gap = 1) {
+        Text(" 3-way split with weight 1:2:1",
+            Modifier.style(Style(fg = Ansi.FG_BRIGHT_WHITE, bold = true)))
+        Row(modifier = Modifier.height(5), gap = 1, alignItems = AlignItems.Stretch) {
+            Panel(title = "A", modifier = Modifier.weight(1f).flexBasis(0)) {
+                Text(" w=1")
+            }
+            Panel(title = "B", modifier = Modifier.weight(2f).flexBasis(0)) {
+                Text(" w=2 (double)")
+            }
+            Panel(title = "C", modifier = Modifier.weight(1f).flexBasis(0)) {
+                Text(" w=1")
+            }
+        }
+
+        Text(" justifyContent = SpaceBetween",
+            Modifier.style(Style(fg = Ansi.FG_BRIGHT_WHITE, bold = true)))
+        Row(justifyContent = JustifyContent.SpaceBetween) {
+            Badge("left")
+            Badge("center")
+            Badge("right")
+        }
+
+        Text(" justifyContent = SpaceAround",
+            Modifier.style(Style(fg = Ansi.FG_BRIGHT_WHITE, bold = true)))
+        Row(justifyContent = JustifyContent.SpaceAround) {
+            Badge("a")
+            Badge("b")
+            Badge("c")
+        }
+    }
+}
+
+@Composable
+private fun FlexSettings() {
+    Column(justifyContent = JustifyContent.Center, alignItems = AlignItems.Center) {
+        Text("Settings",
+            Modifier.style(Style(fg = Ansi.FG_BRIGHT_MAGENTA, bold = true)))
+        Spacer(Modifier.height(1))
+        Text("JustifyContent.Center + AlignItems.Center")
+        Text("centers the children on both axes.",
+            Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK)))
     }
 }
 
@@ -271,4 +374,4 @@ private fun demoGradient(): TerminalImage {
     return TerminalImage(rgba, w, h, fallbackText = "[gradient]")
 }
 
-fun main() = runTui { App() }
+fun main() = runTui(fullscreen = true) { App() }

@@ -22,9 +22,22 @@ data class ImagePlacement(
     val zIndex: Int,
 )
 
-class RenderBuffer(val width: Int, val height: Int) {
-    private val cells: Array<Array<Cell>> = Array(height) { Array(width) { Cell() } }
+class RenderBuffer(width: Int, height: Int) {
+    var width: Int = width
+        private set
+    var height: Int = height
+        private set
+    private var cells: Array<Array<Cell>> = Array(height) { Array(width) { Cell() } }
     private val placements: MutableList<ImagePlacement> = mutableListOf()
+
+    /** Reallocates the cell grid to [newWidth] × [newHeight]. Existing contents are discarded. */
+    fun resize(newWidth: Int, newHeight: Int) {
+        if (newWidth == width && newHeight == height) return
+        width = newWidth
+        height = newHeight
+        cells = Array(newHeight) { Array(newWidth) { Cell() } }
+        placements.clear()
+    }
 
     fun set(x: Int, y: Int, char: Char, style: Style, zIndex: Int) {
         setGrapheme(x, y, char.toString(), 1, style, zIndex)

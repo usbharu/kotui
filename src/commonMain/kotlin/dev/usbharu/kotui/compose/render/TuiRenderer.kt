@@ -10,8 +10,19 @@ import dev.usbharu.kotui.utils.SixelSupport
 import dev.usbharu.kotui.utils.TerminalCaps
 import dev.usbharu.kotui.utils.takeDisplayWidth
 
-class TuiRenderer(private val screenWidth: Int, private val screenHeight: Int) {
+class TuiRenderer(screenWidth: Int, screenHeight: Int) {
+    var screenWidth: Int = screenWidth
+        private set
+    var screenHeight: Int = screenHeight
+        private set
     private val buffer = RenderBuffer(screenWidth, screenHeight)
+
+    fun resize(newWidth: Int, newHeight: Int) {
+        if (newWidth == screenWidth && newHeight == screenHeight) return
+        screenWidth = newWidth
+        screenHeight = newHeight
+        buffer.resize(newWidth, newHeight)
+    }
 
     fun render(root: TuiNode, focusManager: FocusManager) {
         buffer.clear()

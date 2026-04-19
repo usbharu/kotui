@@ -1,5 +1,7 @@
 package dev.usbharu.kotui.compose.node
 
+import dev.usbharu.kotui.compose.layout.AlignItems
+import dev.usbharu.kotui.compose.layout.JustifyContent
 import dev.usbharu.kotui.compose.modifier.Modifier
 import dev.usbharu.kotui.compose.runtime.KeyEvent
 import dev.usbharu.kotui.core.Rect
@@ -20,6 +22,11 @@ class TuiNode(val tag: String = "Node") {
     var preferredWidth: Int? = null
     var preferredHeight: Int? = null
     var layoutGap: Int = 0
+
+    var flexGrow: Float = 0f
+    var flexBasis: Int? = null
+    var justifyContent: JustifyContent = JustifyContent.Start
+    var alignItems: AlignItems = AlignItems.Stretch
 
     var style: Style = Style()
     var focusedStyle: Style? = null

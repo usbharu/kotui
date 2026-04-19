@@ -2,7 +2,9 @@ package dev.usbharu.kotui
 
 import dev.usbharu.kotui.compose.runtime.AnsiKeyDecoder
 import dev.usbharu.kotui.compose.runtime.InputEvent
+import java.io.BufferedReader
 import java.io.InputStream
+import java.io.InputStreamReader
 
 actual fun enableRawMode() {
     Runtime.getRuntime().exec(arrayOf("sh", "-c", "stty raw -echo < /dev/tty")).waitFor()
@@ -43,6 +45,35 @@ actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
         val ch = readUtf8Char(input) ?: break
         if (!emit(decoder.feed(ch))) return
     }
+}
+
+actual fun terminalSize(): TerminalSize? {
+    // Primary: `stty size < /dev/tty` prints "<rows> <cols>". Reliable on any
+    // TTY-bound process (including Gradle JavaExec when standardInput is tty).
+    runCatching {
+        val proc = ProcessBuilder("sh", "-c", "stty size < /dev/tty")
+            .redirectErrorStream(true)
+            .start()
+        val out = BufferedReader(InputStreamReader(proc.inputStream)).use { it.readLine()?.trim() }
+        proc.waitFor()
+        if (!out.isNullOrEmpty()) {
+            val parts = out.split(" ")
+            if (parts.size == 2) {
+                val rows = parts[0].toIntOrNull()
+                val cols = parts[1].toIntOrNull()
+                if (rows != null && cols != null && rows > 0 && cols > 0) {
+                    return TerminalSize(cols, rows)
+                }
+            }
+        }
+    }
+    // Fallback: environment variables exposed by some shells.
+    val envCols = System.getenv("COLUMNS")?.toIntOrNull()
+    val envRows = System.getenv("LINES")?.toIntOrNull()
+    if (envCols != null && envRows != null && envCols > 0 && envRows > 0) {
+        return TerminalSize(envCols, envRows)
+    }
+    return null
 }
 
 private fun readUtf8Char(input: InputStream): Char? {
