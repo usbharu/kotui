@@ -29,6 +29,7 @@ fun App() {
                 'i' -> screen = "image"
                 'f' -> screen = "flex"
                 'l' -> screen = "list"
+                'm' -> screen = "select"
                 '\u001B' -> if (screen != "list") screen = "list"
             }
         }
@@ -55,6 +56,7 @@ fun App() {
             "showcase" -> Showcase()
             "image" -> ImageTest()
             "flex" -> FlexShowcase()
+            "select" -> SelectShowcase()
         }
     }
 }
@@ -75,7 +77,7 @@ private fun AppChrome(screen: String, content: @Composable () -> Unit) {
         }
 
         Row(modifier = Modifier.height(1), justifyContent = JustifyContent.SpaceBetween) {
-            Text(" l=list  s=showcase  i=image  f=flex ", Modifier.style(footerStyle))
+            Text(" l=list  s=showcase  i=image  f=flex  m=select ", Modifier.style(footerStyle))
             Text(" Esc=back  q=quit ", Modifier.style(footerStyle))
         }
     }
@@ -256,25 +258,19 @@ private fun ImageTest() {
 @Composable
 private fun FlexShowcase() {
     var selected by remember { mutableStateOf(0) }
-    onKey { ev ->
-        when (ev.char) {
-            'j' -> selected = (selected + 1).coerceAtMost(2)
-            'k' -> selected = (selected - 1).coerceAtLeast(0)
-        }
-    }
-
-    val accent = Style(fg = Ansi.FG_CYAN, bold = true)
     val dim = Style(fg = Ansi.FG_BRIGHT_BLACK)
+    val menuItems = listOf("Overview", "Details", "Settings")
 
     Row(gap = 1, alignItems = AlignItems.Stretch) {
         // Sidebar — fixed flex basis, no grow.
         Panel(title = "Menu", modifier = Modifier.flexBasis(22)) {
-            listOf("Overview", "Details", "Settings").forEachIndexed { i, label ->
-                val s = if (i == selected) accent else Style()
-                Text(if (i == selected) "  > $label" else "    $label", Modifier.style(s))
-            }
+            SelectableList(
+                items = menuItems,
+                selectedIndex = selected,
+                onSelectedIndexChange = { selected = it },
+            )
             Spacer(Modifier.height(1))
-            Text(" j/k to navigate", Modifier.style(dim))
+            Text(" Tab to focus, j/k or arrows", Modifier.style(dim))
         }
 
         // Main content grows to fill remaining width.
@@ -355,6 +351,89 @@ private fun FlexSettings() {
         Text("JustifyContent.Center + AlignItems.Center")
         Text("centers the children on both axes.",
             Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK)))
+    }
+}
+
+@Composable
+private fun SelectShowcase() {
+    val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
+    val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
+
+    val fruits = remember { listOf("Apple", "Banana", "Cherry", "Durian", "Elderberry", "Fig", "Grape", "Honeydew", "Kiwi", "Lemon") }
+    var listIndex by remember { mutableStateOf(0) }
+
+    var checkedA by remember { mutableStateOf(false) }
+    var checkedB by remember { mutableStateOf(true) }
+
+    val sizes = remember { listOf("Small", "Medium", "Large", "X-Large") }
+    var size by remember { mutableStateOf(sizes[1]) }
+
+    val colors = remember { listOf("Red", "Green", "Blue", "Yellow", "Magenta", "Cyan") }
+    var color by remember { mutableStateOf(colors[0]) }
+
+    val tags = remember { listOf("urgent", "backend", "bug", "feature", "docs", "test", "chore", "refactor") }
+    var tagCursor by remember { mutableStateOf(0) }
+    var checkedTags by remember { mutableStateOf(setOf(0, 2)) }
+
+    Column(gap = 1) {
+        Text("  === Select Showcase ===", title)
+        Text("  Tab=next focus  Enter=activate  Space=toggle", dim)
+
+        Row(gap = 2, alignItems = AlignItems.Stretch) {
+            Panel(title = "SelectableList (single)", modifier = Modifier.flexBasis(32)) {
+                SelectableList(
+                    items = fruits,
+                    selectedIndex = listIndex,
+                    onSelectedIndexChange = { listIndex = it },
+                    visibleRows = 5,
+                    onActivate = { _, _ -> /* demo */ },
+                )
+                Text("  picked: ${fruits[listIndex]}", dim)
+            }
+
+            Panel(title = "MultiSelectList", modifier = Modifier.flexBasis(34)) {
+                MultiSelectList(
+                    items = tags,
+                    cursorIndex = tagCursor,
+                    onCursorIndexChange = { tagCursor = it },
+                    checkedIndices = checkedTags,
+                    onCheckedIndicesChange = { checkedTags = it },
+                    visibleRows = 5,
+                )
+                Text("  " + checkedTags.sorted().joinToString(",") { tags[it] }, dim)
+                Text("  Space=toggle  Ctrl+A=all  Ctrl+D=none", dim)
+            }
+        }
+
+        Row(gap = 2, alignItems = AlignItems.Stretch) {
+            Panel(title = "Checkbox", modifier = Modifier.flexBasis(28)) {
+                Checkbox(checkedA, { checkedA = it }, label = "Enable cache")
+                Checkbox(checkedB, { checkedB = it }, label = "Dark theme")
+            }
+
+            Panel(title = "RadioGroup: size", modifier = Modifier.flexBasis(22)) {
+                RadioGroup(
+                    options = sizes,
+                    selected = size,
+                    onSelectedChange = { size = it },
+                )
+                Text("  size = $size", dim)
+            }
+
+            Panel(title = "Select: color", modifier = Modifier.flexBasis(30)) {
+                Select(
+                    items = colors,
+                    selected = color,
+                    onSelectedChange = { color = it },
+                    dropdownOffsetX = 4,
+                    dropdownOffsetY = 14,
+                    dropdownWidth = 20,
+                    dropdownHeight = 8,
+                )
+                Text("  color = $color", dim)
+                Text("  Enter to open", dim)
+            }
+        }
     }
 }
 
