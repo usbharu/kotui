@@ -31,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
@@ -40,11 +41,20 @@ import kotlinx.coroutines.yield
 private const val ACTIVE_FRAME_INTERVAL_MS = 16L
 private const val IDLE_FRAME_INTERVAL_MS = 50L
 
+/**
+ * @param exitOnQuit When true (default) the process is terminated via [forceExit] once
+ *   the TUI loop ends. This is required for standalone TUI binaries because the platform
+ *   input pump blocks in a native `read()` that cannot be coroutine-cancelled, so the
+ *   hosting process would otherwise hang waiting for the next keypress. Set to false to
+ *   embed kotui inside a larger application; the caller accepts that a background input
+ *   thread may remain alive until the next stdin byte arrives (at which point it exits).
+ */
 fun runTui(
     screenWidth: Int = 80,
     screenHeight: Int = 24,
     fullscreen: Boolean = false,
     clipboard: Clipboard = SystemClipboard(),
+    exitOnQuit: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val frameClock = BroadcastFrameClock()
@@ -67,7 +77,10 @@ fun runTui(
     // suppress the second press of 'j' because KeyEvent is a data class and
     // back-to-back equal events would be treated as "no change".
     val keyEventState = mutableStateOf<KeyEvent?>(null, policy = neverEqualPolicy())
-    val inputChannel = Channel<InputEvent>(Channel.UNLIMITED)
+    // Bounded buffer so a stuck render loop cannot allow unbounded input growth
+    // (bracketed paste or held-down keys can produce events faster than we render).
+    // DROP_OLDEST favours responsiveness over completeness for key floods.
+    val inputChannel = Channel<InputEvent>(capacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val resizeChannel = Channel<TerminalSize>(Channel.CONFLATED)
 
     var running = true
@@ -191,11 +204,11 @@ fun runTui(
         }
 
         // Watch for terminal resize. Platform actuals pick the best mechanism
-        // (SIGWINCH on Unix / `resize` event on Node / polling on Windows).
-        if (fullscreen) {
-            resizeWatcher = watchTerminalResize { size ->
-                resizeChannel.trySend(size)
-            }
+        // (SIGWINCH on Unix / `resize` event on Node / polling on Windows). We
+        // watch in every mode so non-fullscreen layouts can also react; the
+        // fullscreen-only behavior (full CLEAR_SCREEN) is suppressed below.
+        resizeWatcher = watchTerminalResize { size ->
+            resizeChannel.trySend(size)
         }
 
         // Initial render.
@@ -233,7 +246,7 @@ fun runTui(
             Snapshot.sendApplyNotifications()
             val dirty = event != null || resized || frameClock.hasAwaiters
             if (dirty) {
-                if (resized) print(Ansi.CLEAR_SCREEN)
+                if (resized && fullscreen) print(Ansi.CLEAR_SCREEN)
                 frameClock.sendFrame(frameTimeNanos())
                 yield()
                 renderNow()
@@ -254,8 +267,12 @@ fun runTui(
     } finally {
         cleanup()
     }
-    // The background worker running `onInputEvent` blocks in a native read()
-    // that cannot be interrupted via coroutine cancellation. Force process
-    // termination so the TUI actually exits when the user quits.
-    forceExit(0)
+    if (exitOnQuit) {
+        // The background worker running `onInputEvent` blocks in a native read()
+        // that cannot be interrupted via coroutine cancellation. Force process
+        // termination so the TUI actually exits when the user quits.
+        forceExit(0)
+    }
+    // exitOnQuit=false: return normally. The input-pump thread remains blocked
+    // in read() until the next byte arrives; callers must tolerate this.
 }

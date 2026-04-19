@@ -5,13 +5,63 @@ import dev.usbharu.kotui.compose.runtime.InputEvent
 import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
+import java.util.concurrent.TimeUnit
+
+private var savedSttyState: String? = null
+
+private fun runStty(cmd: String, captureStdout: Boolean = false): Pair<Int, String?> {
+    val proc = ProcessBuilder("sh", "-c", cmd)
+        .redirectErrorStream(true)
+        .start()
+    val out = if (captureStdout) {
+        BufferedReader(InputStreamReader(proc.inputStream)).use { it.readLine()?.trim() }
+    } else {
+        proc.inputStream.close()
+        null
+    }
+    val finished = proc.waitFor(2, TimeUnit.SECONDS)
+    if (!finished) {
+        proc.destroyForcibly()
+        proc.waitFor(500, TimeUnit.MILLISECONDS)
+        return -1 to out
+    }
+    return proc.exitValue() to out
+}
 
 actual fun enableRawMode() {
-    Runtime.getRuntime().exec(arrayOf("sh", "-c", "stty raw -echo < /dev/tty")).waitFor()
+    // Capture current tty settings so we can fully restore them later. If the
+    // process is not attached to a tty (CI, Docker w/o -t, piped stdin) this
+    // step fails — surface it rather than silently writing escape codes to a
+    // terminal we don't actually control.
+    val (saveRc, saved) = runStty("stty -g < /dev/tty", captureStdout = true)
+    if (saveRc != 0 || saved.isNullOrBlank()) {
+        throw IllegalStateException(
+            "kotui: unable to read tty state via `stty -g < /dev/tty` (exit=$saveRc). " +
+                "runTui requires an interactive terminal."
+        )
+    }
+    savedSttyState = saved
+
+    val (enableRc, _) = runStty("stty raw -echo < /dev/tty")
+    if (enableRc != 0) {
+        savedSttyState = null
+        throw IllegalStateException(
+            "kotui: `stty raw -echo < /dev/tty` failed (exit=$enableRc)."
+        )
+    }
 }
 
 actual fun disableRawMode() {
-    Runtime.getRuntime().exec(arrayOf("sh", "-c", "stty sane < /dev/tty")).waitFor()
+    val saved = savedSttyState
+    savedSttyState = null
+    if (saved != null) {
+        // `stty <saved>` restores the exact flags captured in enableRawMode.
+        val (rc, _) = runStty("stty $saved < /dev/tty")
+        if (rc == 0) return
+    }
+    // Fallback: best-effort reset so the terminal stays usable even if the
+    // saved state is missing or restoration failed.
+    runStty("stty sane < /dev/tty")
 }
 
 private const val ESC_TIMEOUT_MS = 40L

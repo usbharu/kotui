@@ -44,4 +44,9 @@ bin/
 ### Mac OS ###
 .DS_Store
 
+### JVM crash / heap dumps ###
+*.hprof
+hs_err_pid*.log
+replay_pid*.log
+
 .claude/settings.local.json
