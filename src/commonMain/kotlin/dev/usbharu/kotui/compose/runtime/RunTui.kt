@@ -8,6 +8,7 @@ import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.snapshots.Snapshot
+import dev.usbharu.kotui.TerminalResizeWatcher
 import dev.usbharu.kotui.TerminalSize
 import dev.usbharu.kotui.compose.applier.TuiApplier
 import dev.usbharu.kotui.compose.clipboard.Clipboard
@@ -21,6 +22,7 @@ import dev.usbharu.kotui.disableRawMode
 import dev.usbharu.kotui.enableRawMode
 import dev.usbharu.kotui.onInputEvent
 import dev.usbharu.kotui.terminalSize
+import dev.usbharu.kotui.watchTerminalResize
 import dev.usbharu.kotui.utils.Ansi
 import dev.usbharu.kotui.utils.Kitty
 import dev.usbharu.kotui.utils.SixelSupport
@@ -30,8 +32,6 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
@@ -39,7 +39,6 @@ import kotlinx.coroutines.yield
 
 private const val ACTIVE_FRAME_INTERVAL_MS = 16L
 private const val IDLE_FRAME_INTERVAL_MS = 50L
-private const val RESIZE_POLL_INTERVAL_MS = 150L
 
 fun runTui(
     screenWidth: Int = 80,
@@ -74,10 +73,12 @@ fun runTui(
     var running = true
     val quit: () -> Unit = { running = false }
 
+    var resizeWatcher: TerminalResizeWatcher? = null
     var cleanedUp = false
     fun cleanup() {
         if (cleanedUp) return
         cleanedUp = true
+        resizeWatcher?.close()
         inputChannel.close()
         resizeChannel.close()
         if (SixelSupport.cached?.kittySupported == true) {
@@ -189,22 +190,13 @@ fun runTui(
             }
         }
 
-        // Poll terminal size on a background dispatcher while fullscreen is
-        // active so we pick up window resize events without relying on signal
-        // handlers (which are fiddly across KMP targets).
-        val resizeJob = if (fullscreen) {
-            scope.launch(Dispatchers.Default) {
-                var last = TerminalSize(currentWidth, currentHeight)
-                while (isActive && running) {
-                    delay(RESIZE_POLL_INTERVAL_MS)
-                    val now = terminalSize() ?: continue
-                    if (now != last) {
-                        last = now
-                        resizeChannel.trySend(now)
-                    }
-                }
+        // Watch for terminal resize. Platform actuals pick the best mechanism
+        // (SIGWINCH on Unix / `resize` event on Node / polling on Windows).
+        if (fullscreen) {
+            resizeWatcher = watchTerminalResize { size ->
+                resizeChannel.trySend(size)
             }
-        } else null
+        }
 
         // Initial render.
         Snapshot.sendApplyNotifications()
@@ -257,7 +249,6 @@ fun runTui(
         } catch (_: Throwable) {
         }
         inputJob.cancel()
-        resizeJob?.cancel()
         scopeJob.cancel()
     }
     } finally {
