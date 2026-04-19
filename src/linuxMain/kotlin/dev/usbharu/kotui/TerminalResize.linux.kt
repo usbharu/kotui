@@ -18,6 +18,8 @@ import platform.posix.SA_RESTART
 import platform.posix.SIGWINCH
 import platform.posix.sigaction
 
+private const val QUIET_WINDOW_MS = 80L
+
 private val resizePending = AtomicInt(0)
 
 @Suppress("UNUSED_PARAMETER")
@@ -42,7 +44,14 @@ actual fun watchTerminalResize(onResize: (TerminalSize) -> Unit): TerminalResize
         var last = terminalSize()
         while (isActive) {
             delay(30)
-            if (resizePending.compareAndSet(1, 0)) {
+            if (resizePending.value != 0) {
+                // Debounce: wait for a quiet window before reading the size
+                // so a rapid drag coalesces into one onResize call.
+                while (isActive) {
+                    resizePending.value = 0
+                    delay(QUIET_WINDOW_MS)
+                    if (resizePending.value == 0) break
+                }
                 val now = terminalSize() ?: continue
                 if (now != last) {
                     last = now
