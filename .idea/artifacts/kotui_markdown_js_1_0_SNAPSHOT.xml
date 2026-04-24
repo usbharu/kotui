@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="kotui-markdown-js-1.0-SNAPSHOT">
+    <output-path>$PROJECT_DIR$/kotui-markdown/build/libs</output-path>
+    <root id="archive" name="kotui-markdown-js-1.0-SNAPSHOT.jar">
+      <element id="module-output" name="kotui.kotui-markdown.jsMain" />
+    </root>
+  </artifact>
+</component>

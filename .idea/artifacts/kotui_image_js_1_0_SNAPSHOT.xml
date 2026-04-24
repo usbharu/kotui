@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="kotui-image-js-1.0-SNAPSHOT">
+    <output-path>$PROJECT_DIR$/kotui-image/build/libs</output-path>
+    <root id="archive" name="kotui-image-js-1.0-SNAPSHOT.jar">
+      <element id="module-output" name="kotui.kotui-image.jsMain" />
+    </root>
+  </artifact>
+</component>

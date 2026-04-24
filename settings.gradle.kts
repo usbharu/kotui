@@ -10,3 +10,4 @@ includeBuild("third-party/markdown-kt") {
 }
 
 include(":kotui-markdown")
+include(":kotui-image")
