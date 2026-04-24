@@ -84,4 +84,64 @@ class SixelSupportTest {
         assertEquals(10, merged.cellPixelWidth)
         assertEquals(20, merged.cellPixelHeight)
     }
+
+    @Test
+    fun zellijFlagsInsideMultiplexer() {
+        val caps = detectCapsFromEnv(env(
+            "TERM" to "xterm-ghostty",
+            "TERM_PROGRAM" to "ghostty",
+            "ZELLIJ" to "0",
+            "ZELLIJ_SESSION_NAME" to "main",
+        ))
+        assertTrue(caps.insideMultiplexer, "ZELLIJ env implies multiplexer")
+        // Raw env hints are preserved; the veto happens in mergeCaps.
+        assertTrue(caps.kitty)
+    }
+
+    @Test
+    fun tmuxFlagsInsideMultiplexer() {
+        val caps = detectCapsFromEnv(env(
+            "TERM" to "tmux-256color",
+            "TMUX" to "/tmp/tmux-501/default,1234,0",
+        ))
+        assertTrue(caps.insideMultiplexer)
+    }
+
+    @Test
+    fun multiplexerVetoesProbeSixelSupportInMergedCaps() {
+        // Host reports feature 4 (sixel) via DA1, but zellij intercepts the
+        // image payload — the merge should return sixel=false.
+        val probe = parseTerminalResponses("[?64;1;2;4;6;9;22c")
+        val envCaps = detectCapsFromEnv(env(
+            "TERM" to "xterm-256color",
+            "ZELLIJ" to "0",
+        ))
+        val merged = mergeCaps(probe, envCaps)
+        assertFalse(merged.sixelSupported)
+        assertFalse(merged.kittySupported)
+    }
+
+    @Test
+    fun multiplexerVetoesEnvKittyInMergedCaps() {
+        val envCaps = detectCapsFromEnv(env(
+            "TERM" to "xterm-ghostty",
+            "TERM_PROGRAM" to "ghostty",
+            "ZELLIJ" to "0",
+        ))
+        val merged = mergeCaps(probe = null, env = envCaps)
+        assertFalse(merged.kittySupported)
+        assertFalse(merged.sixelSupported)
+    }
+
+    @Test
+    fun forceGraphicsOverrideReenablesInsideMultiplexer() {
+        val caps = detectCapsFromEnv(env(
+            "TERM" to "xterm-ghostty",
+            "ZELLIJ" to "0",
+            "KOTUI_FORCE_GRAPHICS" to "1",
+        ))
+        assertFalse(caps.insideMultiplexer, "override clears multiplexer flag")
+        val merged = mergeCaps(probe = null, env = caps)
+        assertTrue(merged.kittySupported, "override lets Ghostty kitty env propagate")
+    }
 }

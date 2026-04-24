@@ -15,7 +15,7 @@ class TuiRenderer(screenWidth: Int, screenHeight: Int) {
         private set
     var screenHeight: Int = screenHeight
         private set
-    private val buffer = RenderBuffer(screenWidth, screenHeight)
+    internal val buffer = RenderBuffer(screenWidth, screenHeight)
 
     fun resize(newWidth: Int, newHeight: Int) {
         if (newWidth == screenWidth && newHeight == screenHeight) return
@@ -29,6 +29,16 @@ class TuiRenderer(screenWidth: Int, screenHeight: Int) {
         renderNode(root, 0, focusManager)
         val cursorNode = findCursorNode(root, focusManager)
         flush(cursorNode)
+    }
+
+    /**
+     * Populates the internal [buffer] by running the full render pass but
+     * without emitting ANSI escapes to stdout. Primarily for tests that want
+     * to inspect cell contents / placements after a layout + render cycle.
+     */
+    internal fun renderToBuffer(root: TuiNode, focusManager: FocusManager) {
+        buffer.clear()
+        renderNode(root, 0, focusManager)
     }
 
     private fun renderNode(node: TuiNode, parentZ: Int, focusManager: FocusManager) {

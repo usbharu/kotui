@@ -53,7 +53,18 @@ internal const val TERMINAL_PROBE = "\u001B[c\u001B[16t"
 internal const val TERMINAL_PROBE_TERMINATORS = 2
 
 /** Image protocol support inferred from environment variables. */
-internal data class EnvCaps(val sixel: Boolean, val kitty: Boolean)
+internal data class EnvCaps(
+    val sixel: Boolean,
+    val kitty: Boolean,
+    /**
+     * True when the process is running inside a terminal multiplexer
+     * (zellij, tmux, screen, …) that intercepts escape sequences. Even if
+     * the host terminal supports Sixel / Kitty, the multiplexer typically
+     * drops or mangles the image payload, so we treat it as unsupported
+     * unless the user explicitly opts in via `KOTUI_FORCE_GRAPHICS=1`.
+     */
+    val insideMultiplexer: Boolean = false,
+)
 
 /**
  * Classifies the running process environment to figure out which terminal
@@ -67,6 +78,17 @@ internal data class EnvCaps(val sixel: Boolean, val kitty: Boolean)
 internal fun detectCapsFromEnv(env: (String) -> String?): EnvCaps {
     val term = env("TERM")?.lowercase().orEmpty()
     val termProgram = env("TERM_PROGRAM")?.lowercase().orEmpty()
+
+    val forceGraphics = env("KOTUI_FORCE_GRAPHICS")?.let { it == "1" || it.equals("true", ignoreCase = true) } == true
+    val insideMultiplexer = !forceGraphics && when {
+        env("ZELLIJ") != null -> true
+        env("ZELLIJ_SESSION_NAME") != null -> true
+        env("TMUX") != null -> true
+        env("STY") != null -> true
+        term.startsWith("screen") -> true
+        term.startsWith("tmux") -> true
+        else -> false
+    }
 
     val kitty = when {
         term == "xterm-kitty" -> true
@@ -92,7 +114,7 @@ internal fun detectCapsFromEnv(env: (String) -> String?): EnvCaps {
         else -> false
     }
 
-    return EnvCaps(sixel = sixel, kitty = kitty)
+    return EnvCaps(sixel = sixel, kitty = kitty, insideMultiplexer = insideMultiplexer)
 }
 
 /**
@@ -101,8 +123,8 @@ internal fun detectCapsFromEnv(env: (String) -> String?): EnvCaps {
  * authoritative source for kgp (which has no standard DA1 feature code).
  */
 internal fun mergeCaps(probe: TerminalCaps?, env: EnvCaps): TerminalCaps {
-    val sixel = (probe?.sixelSupported == true) || env.sixel
-    val kitty = env.kitty
+    val sixel = if (env.insideMultiplexer) false else (probe?.sixelSupported == true) || env.sixel
+    val kitty = if (env.insideMultiplexer) false else env.kitty
     val w = probe?.cellPixelWidth ?: 10
     val h = probe?.cellPixelHeight ?: 20
     return TerminalCaps(
