@@ -20,8 +20,8 @@ fun App() {
 
     val quit = LocalQuit.current
 
-    // Global shortcuts while we're not in the editor (which needs text input).
-    if (screen != "editor") {
+    // Global shortcuts while we're not in text editors (which need text input).
+    if (screen != "editor" && screen != "textarea") {
         onKey { ev ->
             when (ev.char) {
                 'q' -> quit()
@@ -30,6 +30,7 @@ fun App() {
                 'f' -> screen = "flex"
                 'l' -> screen = "list"
                 'm' -> screen = "select"
+                't' -> screen = "textarea"
                 '\u001B' -> if (screen != "list") screen = "list"
             }
         }
@@ -57,6 +58,7 @@ fun App() {
             "image" -> ImageTest()
             "flex" -> FlexShowcase()
             "select" -> SelectShowcase()
+            "textarea" -> TextAreaShowcase(onBack = { screen = "list" })
         }
     }
 }
@@ -77,7 +79,7 @@ private fun AppChrome(screen: String, content: @Composable () -> Unit) {
         }
 
         Row(modifier = Modifier.height(1), justifyContent = JustifyContent.SpaceBetween) {
-            Text(" l=list  s=showcase  i=image  f=flex  m=select ", Modifier.style(footerStyle))
+            Text(" l=list  s=showcase  i=image  f=flex  m=select  t=textarea ", Modifier.style(footerStyle))
             Text(" Esc=back  q=quit ", Modifier.style(footerStyle))
         }
     }
@@ -433,6 +435,53 @@ private fun SelectShowcase() {
                 Text("  color = $color", dim)
                 Text("  Enter to open", dim)
             }
+        }
+    }
+}
+
+@Composable
+private fun TextAreaShowcase(onBack: () -> Unit) {
+    var text by remember {
+        mutableStateOf(
+            "kotui TextArea demo\n" +
+                "Enter adds a new line.\n" +
+                "Ctrl+S updates the saved preview."
+        )
+    }
+    var saved by remember { mutableStateOf(text) }
+    val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
+    val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
+
+    onKey { ev -> if (ev.char == '\u001B') onBack() }
+
+    Column(modifier = Modifier.focusScope(), gap = 1) {
+        Text("  === TextArea Showcase ===", title)
+        Text("  Tab=focus  Enter=new line  Ctrl+S=save  Esc=back", dim)
+
+        Row(gap = 2, alignItems = AlignItems.Stretch) {
+            Panel(title = "TextArea", modifier = Modifier.flexBasis(54)) {
+                TextArea(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.width(50).height(8),
+                    onSubmit = { saved = text },
+                )
+            }
+
+            Panel(title = "Saved preview", modifier = Modifier.weight(1f).flexBasis(0)) {
+                Text(" chars: ${text.length}", dim)
+                Text(" lines: ${text.lines().size}", dim)
+                Divider()
+                saved.lines().take(6).forEach { line ->
+                    Text(" $line")
+                }
+            }
+        }
+
+        Row {
+            Button("Clear") { text = "" }
+            Button("Save") { saved = text }
+            Button("Back") { onBack() }
         }
     }
 }
