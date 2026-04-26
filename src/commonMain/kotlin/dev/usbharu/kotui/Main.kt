@@ -45,6 +45,7 @@ fun App() {
             )
             "editor" -> TaskEditor(
                 initialText = if (editIndex >= 0) tasks[editIndex] else "",
+                suggestions = tasks + listOf("Write tests", "Refactor autocomplete", "Ship patch"),
                 onSave = { text ->
                     tasks = if (editIndex >= 0)
                         tasks.mapIndexed { i, t -> if (i == editIndex) text else t }
@@ -140,7 +141,12 @@ private fun TaskList(
 }
 
 @Composable
-private fun TaskEditor(initialText: String, onSave: (String) -> Unit, onCancel: () -> Unit) {
+private fun TaskEditor(
+    initialText: String,
+    suggestions: List<String>,
+    onSave: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
     var text by remember { mutableStateOf(initialText) }
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
 
@@ -150,12 +156,14 @@ private fun TaskEditor(initialText: String, onSave: (String) -> Unit, onCancel: 
         Text("  === Task Editor ===", Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)))
         Text("  " + "-".repeat(50), dim)
         Text("  Task name:", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
-        TextInput(
+        AutocompleteTextInput(
             value = text,
             onValueChange = { text = it },
             placeholder = "Enter task name...",
             modifier = Modifier.width(60),
             onSubmit = { if (text.isNotBlank()) onSave(text) },
+            suggestions = suggestions,
+            visibleRows = 4,
         )
         Text("  " + "-".repeat(50), dim)
         Row {
