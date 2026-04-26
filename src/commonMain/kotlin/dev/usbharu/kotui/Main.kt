@@ -92,7 +92,13 @@ private fun TaskList(
     onDelete: (Int) -> Unit,
 ) {
     var showHelp by remember { mutableStateOf(false) }
+    var selectedIndex by remember { mutableStateOf(0) }
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
+    val selectedTask = tasks.getOrNull(selectedIndex)
+
+    LaunchedEffect(tasks.size) {
+        selectedIndex = if (tasks.isEmpty()) 0 else selectedIndex.coerceIn(0, tasks.lastIndex)
+    }
 
     onKey { ev -> if (ev.char == '?') showHelp = !showHelp }
 
@@ -103,11 +109,21 @@ private fun TaskList(
             Text("  " + "-".repeat(50), dim)
 
             Text("  Tasks (${tasks.size}):", Modifier.style(Style(fg = Ansi.FG_YELLOW, bold = true)))
-            tasks.forEachIndexed { i, task ->
-                Text("    [${i + 1}] $task")
-            }
             if (tasks.isEmpty()) {
                 Text("    (no tasks)", dim)
+            } else {
+                SelectableList(
+                    items = tasks,
+                    selectedIndex = selectedIndex,
+                    onSelectedIndexChange = { selectedIndex = it },
+                    onActivate = { index, _ -> onEdit(index) },
+                    requestInitialFocus = true,
+                    visibleRows = 6,
+                    itemLabel = { it },
+                )
+                selectedTask?.let {
+                    Text("  Selected: [${selectedIndex + 1}] $it", Modifier.style(Style(fg = Ansi.FG_BRIGHT_CYAN)))
+                }
             }
 
             Text("  " + "-".repeat(50), dim)
@@ -115,21 +131,23 @@ private fun TaskList(
             Row {
                 Button("New Task") { onAdd() }
                 if (tasks.isNotEmpty()) {
-                    Button("Edit #1") { onEdit(0) }
-                    Button("Delete #1") { onDelete(0) }
+                    Button("Edit Selected") { onEdit(selectedIndex.coerceIn(0, tasks.lastIndex)) }
+                    Button("Delete Selected") { onDelete(selectedIndex.coerceIn(0, tasks.lastIndex)) }
                 }
                 Button("Help ?") { showHelp = !showHelp }
             }
 
-            Text("  Tab=Focus  ?=Help", dim)
+            Text("  Tab=Focus  Enter=Edit selected  ?=Help", dim)
         }
 
         if (showHelp) {
             Modal("Help", Modifier.offset(15, 4).size(50, 10).style(Style(fg = Ansi.FG_YELLOW, bg = Ansi.BG_BLUE))) {
                 val ms = Modifier.style(Style(fg = Ansi.FG_WHITE, bg = Ansi.BG_BLUE))
                 Text("", ms)
+                Text(" Up/Down - Move task selection", ms)
+                Text(" Enter   - Edit selected task", ms)
+                Text(" Delete  - Use Delete Selected button", ms)
                 Text(" Tab     - Cycle focus within scope", ms)
-                Text(" Enter   - Activate button", ms)
                 Text(" ?       - Toggle help", ms)
                 Text(" q       - Quit", ms)
                 Text("", ms)
