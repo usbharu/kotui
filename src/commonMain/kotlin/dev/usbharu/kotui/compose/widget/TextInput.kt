@@ -112,6 +112,13 @@ private fun currentSelection(b: TextInputBindings): IntRange? {
     return minOf(a, c)..maxOf(a, c)
 }
 
+private fun selectionBounds(b: TextInputBindings): Pair<Int, Int>? {
+    val sel = currentSelection(b) ?: return null
+    val start = sel.first.coerceIn(0, b.value.length)
+    val end = sel.last.coerceIn(start, b.value.length)
+    return start to end
+}
+
 private fun clearSelection(b: TextInputBindings) {
     b.anchor.value = null
 }
@@ -141,8 +148,8 @@ private fun insertText(b: TextInputBindings, insert: String) {
 }
 
 private fun deleteSelection(b: TextInputBindings): Boolean {
-    val sel = currentSelection(b) ?: return false
-    val (newValue, newCursor) = TextEditOps.deleteRange(b.value, sel.first, sel.last)
+    val (start, end) = selectionBounds(b) ?: return false
+    val (newValue, newCursor) = TextEditOps.deleteRange(b.value, start, end)
     clearSelection(b)
     b.cursor.value = newCursor
     b.onValueChange(newValue)
@@ -277,13 +284,13 @@ private fun handleKey(b: TextInputBindings, event: KeyEvent): Boolean {
     if (f.clipboard && ctrl && event.key == Key.CHAR) {
         when (event.char) {
             'c' -> {
-                val sel = currentSelection(b) ?: return false
-                b.clipboard.write(b.value.substring(sel.first, sel.last))
+                val (start, end) = selectionBounds(b) ?: return false
+                b.clipboard.write(b.value.substring(start, end))
                 return true
             }
             'x' -> {
-                val sel = currentSelection(b) ?: return false
-                b.clipboard.write(b.value.substring(sel.first, sel.last))
+                val (start, end) = selectionBounds(b) ?: return false
+                b.clipboard.write(b.value.substring(start, end))
                 if (f.deletion) deleteSelection(b)
                 return true
             }

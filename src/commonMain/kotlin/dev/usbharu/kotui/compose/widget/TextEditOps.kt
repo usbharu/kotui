@@ -86,13 +86,14 @@ internal object TextEditOps {
     /** Returns (newValue, newCursor). Replaces [selection] (if non-null) with [insert]. */
     fun replace(value: String, cursor: Int, selection: IntRange?, insert: String): Pair<String, Int> {
         return if (selection != null) {
-            val start = selection.first
-            val end = selection.last
+            val start = selection.first.coerceIn(0, value.length)
+            val end = selection.last.coerceIn(start, value.length)
             val newValue = value.substring(0, start) + insert + value.substring(end)
             newValue to (start + insert.length)
         } else {
-            val newValue = value.substring(0, cursor) + insert + value.substring(cursor)
-            newValue to (cursor + insert.length)
+            val c = cursor.coerceIn(0, value.length)
+            val newValue = value.substring(0, c) + insert + value.substring(c)
+            newValue to (c + insert.length)
         }
     }
 
