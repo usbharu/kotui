@@ -9,11 +9,18 @@ import platform.posix.*
 private val originalTermios = nativeHeap.alloc<termios>()
 
 actual fun enableRawMode() {
-    tcgetattr(STDIN_FILENO, originalTermios.ptr)
+    if (isatty(STDIN_FILENO) == 0) {
+        throw IllegalStateException("kotui: runTui requires an interactive stdin terminal.")
+    }
+    if (tcgetattr(STDIN_FILENO, originalTermios.ptr) != 0) {
+        throw IllegalStateException("kotui: unable to read terminal state.")
+    }
 
     memScoped {
         val raw = alloc<termios>()
-        tcgetattr(STDIN_FILENO, raw.ptr)
+        if (tcgetattr(STDIN_FILENO, raw.ptr) != 0) {
+            throw IllegalStateException("kotui: unable to read terminal state.")
+        }
 
         raw.c_lflag = raw.c_lflag and (ECHO or ICANON or IEXTEN or ISIG).inv().toULong()
         raw.c_iflag = raw.c_iflag and (BRKINT or ICRNL or INPCK or ISTRIP or IXON).inv().toULong()
@@ -25,7 +32,9 @@ actual fun enableRawMode() {
         raw.c_cc[VMIN] = 0.toUByte()
         raw.c_cc[VTIME] = 1.toUByte() // tenths of a second (100ms)
 
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, raw.ptr)
+        if (tcsetattr(STDIN_FILENO, TCSAFLUSH, raw.ptr) != 0) {
+            throw IllegalStateException("kotui: unable to enable raw mode.")
+        }
     }
 }
 

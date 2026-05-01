@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.konan.target.Family
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
@@ -15,6 +16,11 @@ repositories {
 
 val ktorVersion = "3.4.3"
 val korimVersion = "4.0.10"
+val hostFamily = when {
+    System.getProperty("os.name").contains("Windows", ignoreCase = true) -> Family.MINGW
+    System.getProperty("os.name").contains("Mac", ignoreCase = true) -> Family.OSX
+    else -> Family.LINUX
+}
 
 kotlin {
     jvm()
@@ -26,9 +32,11 @@ kotlin {
     }
 
     targets.withType<KotlinNativeTarget>().configureEach {
-        binaries {
-            executable {
-                entryPoint = "dev.usbharu.kotui.image.main"
+        if (konanTarget.family == hostFamily) {
+            binaries {
+                executable {
+                    entryPoint = "dev.usbharu.kotui.image.main"
+                }
             }
         }
     }
@@ -80,7 +88,7 @@ kotlin {
             dependsOn(ktorKorimMain)
             dependencies {
                 implementation("io.ktor:ktor-client-core:$ktorVersion")
-                implementation("io.ktor:ktor-client-curl:$ktorVersion")
+                implementation("io.ktor:ktor-client-winhttp:$ktorVersion")
                 implementation("com.soywiz.korlibs.korim:korim:$korimVersion")
             }
         }
@@ -100,6 +108,9 @@ tasks.withType<JavaExec> {
 }
 
 tasks.matching {
+    it.name == "linkDebugTestLinuxX64" ||
+        it.name == "linkReleaseTestLinuxX64" ||
+        it.name == "linuxX64Test" ||
     it.name == "compileTestDevelopmentExecutableKotlinJs" ||
         it.name == "jsNodeTest" ||
         it.name == "jsTest" ||
