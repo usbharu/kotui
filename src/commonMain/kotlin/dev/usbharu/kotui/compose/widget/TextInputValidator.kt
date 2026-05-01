@@ -4,7 +4,7 @@ fun interface TextInputValidator {
     fun isValid(value: String): Boolean
 
     companion object {
-        val Any = TextInputValidator { true }
+        val AllowAny = TextInputValidator { true }
         val DigitsOnly = TextInputValidator { value ->
             value.all { it in '0'..'9' }
         }

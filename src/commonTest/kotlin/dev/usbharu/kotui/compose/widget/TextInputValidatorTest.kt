@@ -7,6 +7,12 @@ import kotlin.test.assertTrue
 class TextInputValidatorTest {
 
     @Test
+    fun allowAnyAcceptsAllValues() {
+        assertTrue(TextInputValidator.AllowAny.isValid(""))
+        assertTrue(TextInputValidator.AllowAny.isValid("abc123-日本語"))
+    }
+
+    @Test
     fun digitsOnlyAllowsEmptyAndAsciiDigits() {
         assertTrue(TextInputValidator.DigitsOnly.isValid(""))
         assertTrue(TextInputValidator.DigitsOnly.isValid("123"))

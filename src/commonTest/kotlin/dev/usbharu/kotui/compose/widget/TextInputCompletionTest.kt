@@ -93,6 +93,28 @@ class TextInputCompletionTest {
     }
 
     @Test
+    fun completionPopupWidthClampsLongSuggestions() {
+        val width = completionPopupWidth(
+            items = listOf("a".repeat(200)),
+            display = { it },
+            maxWidth = 40,
+        )
+
+        assertEquals(40, width)
+    }
+
+    @Test
+    fun completionPopupWidthIncludesPanelPadding() {
+        val width = completionPopupWidth(
+            items = listOf("apple"),
+            display = { it },
+            maxWidth = 40,
+        )
+
+        assertEquals(9, width)
+    }
+
+    @Test
     fun dismissedPopupStaysHiddenForTheSameValue() {
         assertEquals(
             false,

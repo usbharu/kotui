@@ -30,7 +30,7 @@ fun TextInput(
     onSubmit: (() -> Unit)? = null,
     enableEditing: Boolean = true,
     editingFeatures: TextEditingFeatures = TextEditingFeatures.Default,
-    inputValidator: TextInputValidator = TextInputValidator.Any,
+    inputValidator: TextInputValidator = TextInputValidator.AllowAny,
     completionCandidates: List<String> = emptyList(),
     completionVisibleRows: Int = 5,
     completionShowOnEmptyQuery: Boolean = false,
@@ -171,19 +171,13 @@ fun TextInput(
                         onPaste = { text ->
                             if (b.enableEditing && b.features.clipboard) {
                                 insertText(b, text)
-                                true
                             } else false
                         }
                     }
                 }
             )
             if (showCompletion) {
-                val popupWidth = completionWindow.items
-                    .map { completionDisplay(it).displayWidth() }
-                    .maxOrNull()
-                    ?.coerceAtLeast(1)
-                    ?.plus(4)
-                    ?: 0
+                val popupWidth = completionPopupWidth(completionWindow.items, completionDisplay)
                 val popupHeight = completionWindow.visibleRows + 2
 
                 Panel(
@@ -281,7 +275,7 @@ private fun acceptCompletion(b: TextInputBindings): Boolean {
         candidate = candidate,
         transform = b.completionTransform,
         inputValidator = b.inputValidator,
-    ) ?: return false
+    ) ?: return true
     val replacement = commit.replacement
     clearSelection(b)
     b.cursor.value = replacement.length

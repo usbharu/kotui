@@ -13,7 +13,7 @@ fun AutocompleteTextInput(
     onSubmit: (() -> Unit)? = null,
     enableEditing: Boolean = true,
     editingFeatures: TextEditingFeatures = TextEditingFeatures.Default,
-    inputValidator: TextInputValidator = TextInputValidator.Any,
+    inputValidator: TextInputValidator = TextInputValidator.AllowAny,
     visibleRows: Int = 5,
     showOnEmptyQuery: Boolean = false,
     suggestionMatcher: (String, String) -> Boolean = { query, candidate ->
