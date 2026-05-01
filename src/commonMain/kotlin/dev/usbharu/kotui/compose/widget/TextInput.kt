@@ -281,7 +281,7 @@ private fun acceptCompletion(b: TextInputBindings): Boolean {
         candidate = candidate,
         transform = b.completionTransform,
         inputValidator = b.inputValidator,
-    ) ?: return true
+    ) ?: return false
     val replacement = commit.replacement
     clearSelection(b)
     b.cursor.value = replacement.length
@@ -347,8 +347,7 @@ private fun handleKey(b: TextInputBindings, event: KeyEvent): Boolean {
     // Enter submits regardless of editing state.
     if (event.key == Key.ENTER) {
         if (b.enableEditing && b.completionWindow.isVisible) {
-            acceptCompletion(b)
-            return true
+            if (acceptCompletion(b)) return true
         }
         b.onSubmit?.invoke()
         return b.onSubmit != null

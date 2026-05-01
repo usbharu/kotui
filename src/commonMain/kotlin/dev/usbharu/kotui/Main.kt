@@ -139,7 +139,7 @@ private fun TaskList(
                 Button("Help ?") { showHelp = !showHelp }
             }
 
-            Text("  Tab=Focus  Enter=Edit selected  ?=Help", dim)
+            Text("  Tab=Focus  Enter(on list)=Edit selected  Enter(on button)=Activate  ?=Help", dim)
         }
 
         if (showHelp) {
