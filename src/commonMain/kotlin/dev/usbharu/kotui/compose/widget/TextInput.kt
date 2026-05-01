@@ -30,6 +30,7 @@ fun TextInput(
     onSubmit: (() -> Unit)? = null,
     enableEditing: Boolean = true,
     editingFeatures: TextEditingFeatures = TextEditingFeatures.Default,
+    inputValidator: TextInputValidator = TextInputValidator.Any,
     completionCandidates: List<String> = emptyList(),
     completionVisibleRows: Int = 5,
     completionShowOnEmptyQuery: Boolean = false,
@@ -155,6 +156,7 @@ fun TextInput(
                             onSubmit = onSubmit,
                             enableEditing = enableEditing,
                             features = editingFeatures,
+                            inputValidator = inputValidator,
                             clipboard = clipboard,
                             cursor = cursorState,
                             anchor = anchorState,
@@ -211,6 +213,7 @@ private data class TextInputBindings(
     val onSubmit: (() -> Unit)?,
     val enableEditing: Boolean,
     val features: TextEditingFeatures,
+    val inputValidator: TextInputValidator,
     val clipboard: Clipboard,
     val cursor: androidx.compose.runtime.MutableState<Int>,
     val anchor: androidx.compose.runtime.MutableState<Int?>,
@@ -248,18 +251,30 @@ private fun moveCursor(b: TextInputBindings, newPos: Int, extendSelection: Boole
     if (b.anchor.value == b.cursor.value) b.anchor.value = null
 }
 
-private fun insertText(b: TextInputBindings, insert: String) {
+private fun insertText(b: TextInputBindings, insert: String): Boolean {
     val sel = currentSelection(b)
-    val (newValue, newCursor) = TextEditOps.replace(b.value, b.cursor.value, sel, insert)
+    val (newValue, newCursor) = TextEditOps.replaceIfValid(
+        value = b.value,
+        cursor = b.cursor.value,
+        selection = sel,
+        insert = insert,
+        inputValidator = b.inputValidator,
+    ) ?: return false
     clearSelection(b)
     b.cursor.value = newCursor
     b.onValueChange(newValue)
+    return true
 }
 
 private fun acceptCompletion(b: TextInputBindings): Boolean {
     if (!b.completionWindow.isVisible) return false
     val candidate = b.completionWindow.items[b.completionWindow.selectedIndex]
-    val commit = commitCompletionValue(b.value, candidate, b.completionTransform)
+    val commit = commitCompletionValueIfValid(
+        currentValue = b.value,
+        candidate = candidate,
+        transform = b.completionTransform,
+        inputValidator = b.inputValidator,
+    ) ?: return true
     val replacement = commit.replacement
     clearSelection(b)
     b.cursor.value = replacement.length

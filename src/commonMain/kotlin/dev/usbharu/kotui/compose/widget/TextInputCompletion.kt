@@ -70,6 +70,16 @@ internal fun commitCompletionValue(
     return CompletionCommitResult(replacement = replacement, consumeEnter = true)
 }
 
+internal fun commitCompletionValueIfValid(
+    currentValue: String,
+    candidate: String,
+    transform: (String, String) -> String,
+    inputValidator: TextInputValidator,
+): CompletionCommitResult? {
+    val commit = commitCompletionValue(currentValue, candidate, transform)
+    return commit.takeIf { inputValidator.isValid(it.replacement) }
+}
+
 internal fun shouldShowCompletionPopup(
     isFocused: Boolean,
     enableEditing: Boolean,

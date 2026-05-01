@@ -20,8 +20,8 @@ fun App() {
 
     val quit = LocalQuit.current
 
-    // Global shortcuts while we're not in the editor (which needs text input).
-    if (screen != "editor") {
+    // Global shortcuts while we're not in text-input-heavy screens.
+    if (screen != "editor" && screen != "showcase") {
         onKey { ev ->
             when (ev.char) {
                 'q' -> quit()
@@ -54,7 +54,7 @@ fun App() {
                 },
                 onCancel = { screen = "list" },
             )
-            "showcase" -> Showcase()
+            "showcase" -> Showcase(onBack = { screen = "list" })
             "image" -> ImageTest()
             "flex" -> FlexShowcase()
             "select" -> SelectShowcase()
@@ -193,9 +193,14 @@ private fun TaskEditor(
 }
 
 @Composable
-private fun Showcase() {
+private fun Showcase(onBack: () -> Unit) {
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
     val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
+    var digitsOnly by remember { mutableStateOf("") }
+    var lettersOnly by remember { mutableStateOf("") }
+    var alphanumericOnly by remember { mutableStateOf("") }
+
+    onKey { ev -> if (ev.char == '\u001B') onBack() }
 
     Column {
         Text("  === Component Showcase ===", title)
@@ -208,6 +213,43 @@ private fun Showcase() {
             Badge("DONE", Modifier.style(Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_GREEN, bold = true)))
             Badge("WARN", Modifier.style(Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_YELLOW, bold = true)))
         }
+
+        Spacer(Modifier.height(1))
+
+        Text("  TextInput validators:", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
+        Row(gap = 2) {
+            Column {
+                Text("  digits only", dim)
+                TextInput(
+                    value = digitsOnly,
+                    onValueChange = { digitsOnly = it },
+                    placeholder = "12345",
+                    modifier = Modifier.width(18),
+                    inputValidator = TextInputValidator.DigitsOnly,
+                )
+            }
+            Column {
+                Text("  ASCII letters", dim)
+                TextInput(
+                    value = lettersOnly,
+                    onValueChange = { lettersOnly = it },
+                    placeholder = "abcXYZ",
+                    modifier = Modifier.width(18),
+                    inputValidator = TextInputValidator.AsciiLettersOnly,
+                )
+            }
+            Column {
+                Text("  ASCII alnum", dim)
+                TextInput(
+                    value = alphanumericOnly,
+                    onValueChange = { alphanumericOnly = it },
+                    placeholder = "abc123",
+                    modifier = Modifier.width(18),
+                    inputValidator = TextInputValidator.AsciiAlphanumericOnly,
+                )
+            }
+        }
+        Text("  Invalid edits are blocked as a whole, including paste.", dim)
 
         Spacer(Modifier.height(1))
 

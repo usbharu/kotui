@@ -2,6 +2,7 @@ package dev.usbharu.kotui.compose.widget
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class TextInputCompletionTest {
 
@@ -77,6 +78,18 @@ class TextInputCompletionTest {
 
         assertEquals("apple", commit.replacement)
         assertEquals(true, commit.consumeEnter)
+    }
+
+    @Test
+    fun completionCommitRejectsInvalidReplacement() {
+        val commit = commitCompletionValueIfValid(
+            currentValue = "12",
+            candidate = "12a",
+            transform = { _, candidate -> candidate },
+            inputValidator = TextInputValidator.DigitsOnly,
+        )
+
+        assertNull(commit)
     }
 
     @Test
