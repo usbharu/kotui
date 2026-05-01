@@ -62,7 +62,6 @@ internal fun applyCompletionValue(
 
 internal data class CompletionCommitResult(
     val replacement: String,
-    val consumeEnter: Boolean = true,
 )
 
 internal fun commitCompletionValue(
@@ -71,7 +70,7 @@ internal fun commitCompletionValue(
     transform: (String, String) -> String,
 ): CompletionCommitResult {
     val replacement = applyCompletionValue(currentValue, candidate, transform)
-    return CompletionCommitResult(replacement = replacement, consumeEnter = true)
+    return CompletionCommitResult(replacement = replacement)
 }
 
 internal fun commitCompletionValueIfValid(

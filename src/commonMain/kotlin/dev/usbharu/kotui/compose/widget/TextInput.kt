@@ -267,15 +267,15 @@ private fun insertText(b: TextInputBindings, insert: String): Boolean {
     return true
 }
 
-private fun acceptCompletion(b: TextInputBindings): Boolean {
-    if (!b.completionWindow.isVisible) return false
+private fun acceptCompletion(b: TextInputBindings) {
+    if (!b.completionWindow.isVisible) return
     val candidate = b.completionWindow.items[b.completionWindow.selectedIndex]
     val commit = commitCompletionValueIfValid(
         currentValue = b.value,
         candidate = candidate,
         transform = b.completionTransform,
         inputValidator = b.inputValidator,
-    ) ?: return true
+    ) ?: return
     val replacement = commit.replacement
     clearSelection(b)
     b.cursor.value = replacement.length
@@ -283,7 +283,6 @@ private fun acceptCompletion(b: TextInputBindings): Boolean {
     if (replacement != b.value) {
         b.onValueChange(replacement)
     }
-    return commit.consumeEnter
 }
 
 private fun deleteSelection(b: TextInputBindings): Boolean {
@@ -341,7 +340,8 @@ private fun handleKey(b: TextInputBindings, event: KeyEvent): Boolean {
     // Enter submits regardless of editing state.
     if (event.key == Key.ENTER) {
         if (b.enableEditing && b.completionWindow.isVisible) {
-            if (acceptCompletion(b)) return true
+            acceptCompletion(b)
+            return true
         }
         b.onSubmit?.invoke()
         return b.onSubmit != null

@@ -69,7 +69,7 @@ class TextInputCompletionTest {
     }
 
     @Test
-    fun completionCommitAlwaysConsumesEnter() {
+    fun completionCommitReturnsReplacement() {
         val commit = commitCompletionValue(
             currentValue = "apple",
             candidate = "apple",
@@ -77,7 +77,6 @@ class TextInputCompletionTest {
         )
 
         assertEquals("apple", commit.replacement)
-        assertEquals(true, commit.consumeEnter)
     }
 
     @Test
