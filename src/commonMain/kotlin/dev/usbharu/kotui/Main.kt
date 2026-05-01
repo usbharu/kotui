@@ -196,6 +196,9 @@ private fun TaskEditor(
 private fun Showcase() {
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
     val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
+    var defaultInput by remember { mutableStateOf("") }
+    var customInput by remember { mutableStateOf("custom style") }
+    var plainInput by remember { mutableStateOf("plain opt-out") }
 
     Column {
         Text("  === Component Showcase ===", title)
@@ -215,6 +218,49 @@ private fun Showcase() {
         ProgressBar(progress = 0.25f, width = 24)
         ProgressBar(progress = 0.6f, width = 24, modifier = Modifier.style(Style(fg = Ansi.FG_GREEN)))
         ProgressBar(progress = 1.0f, width = 24, modifier = Modifier.style(Style(fg = Ansi.FG_MAGENTA, bold = true)))
+
+        Spacer(Modifier.height(1))
+
+        Text("  Text inputs:", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
+        Row {
+            Text("  default ")
+            TextInput(
+                value = defaultInput,
+                onValueChange = { defaultInput = it },
+                placeholder = "editable",
+                modifier = Modifier.width(24),
+            )
+        }
+        Row {
+            Text("  custom  ")
+            TextInput(
+                value = customInput,
+                onValueChange = { customInput = it },
+                modifier = Modifier.width(24),
+                decoration = TextInputDecoration(
+                    style = Style(fg = Ansi.FG_BRIGHT_WHITE, bg = Ansi.BG_BLUE, underline = true),
+                    focusedStyle = Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_YELLOW, bold = true, underline = true),
+                ),
+            )
+        }
+        Row {
+            Text("  plain   ")
+            TextInput(
+                value = plainInput,
+                onValueChange = { plainInput = it },
+                modifier = Modifier.width(24),
+                decoration = TextInputDecoration.None,
+            )
+        }
+        Row {
+            Text("  locked  ")
+            TextInput(
+                value = "not editable",
+                onValueChange = {},
+                modifier = Modifier.width(24),
+                enableEditing = false,
+            )
+        }
 
         Spacer(Modifier.height(1))
 

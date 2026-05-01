@@ -29,6 +29,7 @@ fun TextInput(
     modifier: Modifier = Modifier,
     onSubmit: (() -> Unit)? = null,
     enableEditing: Boolean = true,
+    decoration: TextInputDecoration = TextInputDecoration.Default,
     editingFeatures: TextEditingFeatures = TextEditingFeatures.Default,
     completionCandidates: List<String> = emptyList(),
     completionVisibleRows: Int = 5,
@@ -117,6 +118,12 @@ fun TextInput(
         value = value,
         dismissedForValue = completionDismissedForValueState.value,
     )
+    val bodyStyles = resolveTextInputStyles(
+        enableEditing = enableEditing,
+        decoration = decoration,
+        modifierStyle = bodyStyleState.value,
+        modifierFocusedStyle = bodyFocusedStyleState.value,
+    )
 
     ComposeNode<TuiNode, TuiApplier>(
         factory = {
@@ -146,8 +153,8 @@ fun TextInput(
                     set(focusId) { this.focusId = it }
                     set(cursorPosition) { cursorCol = it }
                     set(highlights) { textHighlights = it }
-                    set(bodyStyleState.value) { this.style = it }
-                    set(bodyFocusedStyleState.value) { this.focusedStyle = it }
+                    set(bodyStyles.style) { this.style = it }
+                    set(bodyStyles.focusedStyle) { this.focusedStyle = it }
                     set(
                         TextInputBindings(
                             value = value,
