@@ -89,15 +89,19 @@ fun TextInput(
         }
     } else null
 
-    val completionWindow = buildCompletionWindow(
-        query = value,
-        candidates = completionCandidates,
-        requestedVisibleRows = completionVisibleRows,
-        showOnEmptyQuery = completionShowOnEmptyQuery,
-        matcher = completionMatcher,
-        selectedIndex = effectiveCompletionSelection,
-        scrollIndex = effectiveCompletionScroll,
-    )
+    val completionWindow = if (isFocused && enableEditing && completionCandidates.isNotEmpty()) {
+        buildCompletionWindow(
+            query = value,
+            candidates = completionCandidates,
+            requestedVisibleRows = completionVisibleRows,
+            showOnEmptyQuery = completionShowOnEmptyQuery,
+            matcher = completionMatcher,
+            selectedIndex = effectiveCompletionSelection,
+            scrollIndex = effectiveCompletionScroll,
+        )
+    } else {
+        EmptyCompletionWindow
+    }
 
     val showCompletion = shouldShowCompletionPopup(
         isFocused = isFocused,
@@ -138,6 +142,8 @@ fun TextInput(
                 applyModifier(it)
                 bodyStyleState.value = style
                 bodyFocusedStyleState.value = focusedStyle
+                onKeyEvent = null
+                onPaste = null
             }
         },
         content = {

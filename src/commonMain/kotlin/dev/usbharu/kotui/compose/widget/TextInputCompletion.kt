@@ -13,6 +13,13 @@ internal data class CompletionWindow(
     val isVisible: Boolean get() = items.isNotEmpty() && visibleRows > 0
 }
 
+internal val EmptyCompletionWindow = CompletionWindow(
+    items = emptyList(),
+    selectedIndex = 0,
+    scrollIndex = 0,
+    visibleRows = 0,
+)
+
 internal fun buildCompletionWindow(
     query: String,
     candidates: List<String>,
@@ -29,7 +36,7 @@ internal fun buildCompletionWindow(
     }
 
     if (items.isEmpty()) {
-        return CompletionWindow(items = emptyList(), selectedIndex = 0, scrollIndex = 0, visibleRows = 0)
+        return EmptyCompletionWindow
     }
 
     val visibleRows = requestedVisibleRows.coerceAtLeast(1).coerceAtMost(items.size)
