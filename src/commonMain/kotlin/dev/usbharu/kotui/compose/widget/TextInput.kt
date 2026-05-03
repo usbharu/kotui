@@ -138,8 +138,9 @@ fun TextInput(
             }
         },
         update = {
-            set(modifier) {
-                applyModifier(it)
+            set(TextInputLayoutModifier(displayText.displayWidth(), modifier)) { layoutModifier ->
+                preferredWidth = layoutModifier.bodyWidth
+                applyModifier(layoutModifier.modifier)
                 bodyStyleState.value = style
                 bodyFocusedStyleState.value = focusedStyle
                 onKeyEvent = null
@@ -215,6 +216,11 @@ fun TextInput(
         }
     )
 }
+
+private data class TextInputLayoutModifier(
+    val bodyWidth: Int,
+    val modifier: Modifier,
+)
 
 private data class TextInputBindings(
     val value: String,

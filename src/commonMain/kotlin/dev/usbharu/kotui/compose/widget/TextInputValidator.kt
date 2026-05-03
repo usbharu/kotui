@@ -5,9 +5,10 @@ fun interface TextInputValidator {
 
     companion object {
         val AllowAny = TextInputValidator { true }
-        val DigitsOnly = TextInputValidator { value ->
+        val AsciiDigitsOnly = TextInputValidator { value ->
             value.all { it in '0'..'9' }
         }
+        val DigitsOnly = AsciiDigitsOnly
         val AsciiLettersOnly = TextInputValidator { value ->
             value.all { it in 'a'..'z' || it in 'A'..'Z' }
         }

@@ -20,6 +20,14 @@ class TextInputValidatorTest {
     }
 
     @Test
+    fun asciiDigitsOnlyAllowsEmptyAndAsciiDigits() {
+        assertTrue(TextInputValidator.AsciiDigitsOnly.isValid(""))
+        assertTrue(TextInputValidator.AsciiDigitsOnly.isValid("123"))
+        assertFalse(TextInputValidator.AsciiDigitsOnly.isValid("１２３"))
+        assertFalse(TextInputValidator.AsciiDigitsOnly.isValid("12a"))
+    }
+
+    @Test
     fun asciiLettersOnlyAllowsOnlyAsciiLetters() {
         assertTrue(TextInputValidator.AsciiLettersOnly.isValid("abcXYZ"))
         assertFalse(TextInputValidator.AsciiLettersOnly.isValid("abc1"))
