@@ -54,7 +54,7 @@ fun TextInput(
     val completionDismissedForValueState = remember { mutableStateOf<String?>(null) }
     val bodyStyleState = remember { mutableStateOf(Style()) }
     val bodyFocusedStyleState = remember { mutableStateOf<Style?>(null) }
-    val modifierHandlers = modifier.extractTextInputHandlers()
+    val modifierKeyHandler = remember(modifier) { modifier.extractTextInputKeyHandler() }
 
     // Keep cursor/anchor within bounds if the caller shrinks `value`.
     val safeCursor = TextEditOps.clampToBoundary(value, cursorState.value.coerceIn(0, value.length))
@@ -178,18 +178,13 @@ fun TextInput(
                             completionDismissedForValue = completionDismissedForValueState,
                             completionWindow = completionWindow,
                             completionVisible = showCompletion,
-                            modifierKeyHandler = modifierHandlers.onKeyEvent,
-                            modifierPasteHandler = modifierHandlers.onPaste,
+                            modifierKeyHandler = modifierKeyHandler,
                             completionTransform = completionTransform,
                         ),
                     ) { b ->
-                        onKeyEvent = { event ->
-                            b.modifierKeyHandler?.invoke(event) == true || handleKey(b, event)
-                        }
+                        onKeyEvent = b.modifierKeyHandler ?: { event -> handleKey(b, event) }
                         onPaste = { text ->
-                            if (b.modifierPasteHandler?.invoke(text) == true) {
-                                true
-                            } else if (b.enableEditing && b.features.clipboard) {
+                            if (b.enableEditing && b.features.clipboard) {
                                 insertText(b, text)
                             } else false
                         }
@@ -237,22 +232,13 @@ private data class TextInputBindings(
     val completionWindow: CompletionWindow,
     val completionVisible: Boolean,
     val modifierKeyHandler: ((KeyEvent) -> Boolean)?,
-    val modifierPasteHandler: ((String) -> Boolean)?,
     val completionTransform: (String, String) -> String,
 )
 
-private data class TextInputModifierHandlers(
-    val onKeyEvent: ((KeyEvent) -> Boolean)?,
-    val onPaste: ((String) -> Boolean)?,
-)
-
-private fun Modifier.extractTextInputHandlers(): TextInputModifierHandlers {
+private fun Modifier.extractTextInputKeyHandler(): ((KeyEvent) -> Boolean)? {
     val probe = TuiNode("TextInputModifierProbe")
     probe.applyModifier(this)
-    return TextInputModifierHandlers(
-        onKeyEvent = probe.onKeyEvent,
-        onPaste = probe.onPaste,
-    )
+    return probe.onKeyEvent
 }
 
 private fun currentSelection(b: TextInputBindings): IntRange? {
