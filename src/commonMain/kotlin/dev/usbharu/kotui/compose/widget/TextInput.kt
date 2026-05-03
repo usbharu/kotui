@@ -2,6 +2,7 @@ package dev.usbharu.kotui.compose.widget
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ComposeNode
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import dev.usbharu.kotui.compose.applier.TuiApplier
@@ -53,24 +54,18 @@ fun TextInput(
     val completionDismissedForValueState = remember { mutableStateOf<String?>(null) }
     val bodyStyleState = remember { mutableStateOf(Style()) }
     val bodyFocusedStyleState = remember { mutableStateOf<Style?>(null) }
+    val bodyModifierKeyHandlerState = remember { mutableStateOf<((KeyEvent) -> Boolean)?>(null) }
+    val bodyModifierPasteHandlerState = remember { mutableStateOf<((String) -> Boolean)?>(null) }
 
     // Keep cursor/anchor within bounds if the caller shrinks `value`.
     val safeCursor = TextEditOps.clampToBoundary(value, cursorState.value.coerceIn(0, value.length))
-    if (safeCursor != cursorState.value) cursorState.value = safeCursor
-    anchorState.value?.let { a ->
-        val safeAnchor = TextEditOps.clampToBoundary(value, a.coerceIn(0, value.length))
-        if (safeAnchor != a) anchorState.value = safeAnchor
-        if (anchorState.value == cursorState.value) anchorState.value = null
+    val safeAnchor = anchorState.value?.let { a ->
+        TextEditOps.clampToBoundary(value, a.coerceIn(0, value.length))
     }
-
-    if (completionQueryState.value != value) {
-        completionQueryState.value = value
-        completionSelectionState.value = 0
-        completionScrollState.value = 0
-    }
-    completionDismissedForValueState.value?.let { dismissed ->
-        if (dismissed != value) completionDismissedForValueState.value = null
-    }
+    val completionQueryChanged = completionQueryState.value != value
+    val effectiveCompletionSelection = if (completionQueryChanged) 0 else completionSelectionState.value
+    val effectiveCompletionScroll = if (completionQueryChanged) 0 else completionScrollState.value
+    val effectiveDismissedForValue = completionDismissedForValueState.value?.takeIf { it == value }
 
     val prefix = if (isFocused) "> " else "  "
     val showPlaceholder = !isFocused && value.isEmpty()
@@ -78,13 +73,13 @@ fun TextInput(
     val displayText = prefix + displayBody
 
     val cursorPosition = if (isFocused) {
-        prefix.displayWidth() + value.substring(0, cursorState.value).displayWidth()
+        prefix.displayWidth() + value.substring(0, safeCursor).displayWidth()
     } else null
 
     val highlights: List<TextHighlight>? = if (isFocused && editingFeatures.selection) {
-        anchorState.value?.let { anchor ->
-            val selStart = minOf(anchor, cursorState.value)
-            val selEnd = maxOf(anchor, cursorState.value)
+        safeAnchor?.let { anchor ->
+            val selStart = minOf(anchor, safeCursor)
+            val selEnd = maxOf(anchor, safeCursor)
             if (selStart == selEnd) null
             else {
                 val prefixWidth = prefix.displayWidth()
@@ -101,23 +96,36 @@ fun TextInput(
         requestedVisibleRows = completionVisibleRows,
         showOnEmptyQuery = completionShowOnEmptyQuery,
         matcher = completionMatcher,
-        selectedIndex = completionSelectionState.value,
-        scrollIndex = completionScrollState.value,
+        selectedIndex = effectiveCompletionSelection,
+        scrollIndex = effectiveCompletionScroll,
     )
-    if (completionSelectionState.value != completionWindow.selectedIndex) {
-        completionSelectionState.value = completionWindow.selectedIndex
-    }
-    if (completionScrollState.value != completionWindow.scrollIndex) {
-        completionScrollState.value = completionWindow.scrollIndex
-    }
 
     val showCompletion = shouldShowCompletionPopup(
         isFocused = isFocused,
         enableEditing = enableEditing,
         hasCandidates = completionWindow.isVisible,
         value = value,
-        dismissedForValue = completionDismissedForValueState.value,
+        dismissedForValue = effectiveDismissedForValue,
     )
+
+    SideEffect {
+        if (safeCursor != cursorState.value) cursorState.value = safeCursor
+        if (safeAnchor != anchorState.value) anchorState.value = safeAnchor
+        if (anchorState.value == cursorState.value) anchorState.value = null
+
+        if (completionQueryState.value != value) {
+            completionQueryState.value = value
+        }
+        if (completionSelectionState.value != completionWindow.selectedIndex) {
+            completionSelectionState.value = completionWindow.selectedIndex
+        }
+        if (completionScrollState.value != completionWindow.scrollIndex) {
+            completionScrollState.value = completionWindow.scrollIndex
+        }
+        if (completionDismissedForValueState.value != effectiveDismissedForValue) {
+            completionDismissedForValueState.value = effectiveDismissedForValue
+        }
+    }
 
     ComposeNode<TuiNode, TuiApplier>(
         factory = {
@@ -143,6 +151,11 @@ fun TextInput(
                     }
                 },
                 update = {
+                    set(modifier) {
+                        applyModifier(it)
+                        bodyModifierKeyHandlerState.value = onKeyEvent
+                        bodyModifierPasteHandlerState.value = onPaste
+                    }
                     set(displayText) { text = it }
                     set(focusId) { this.focusId = it }
                     set(cursorPosition) { cursorCol = it }
@@ -164,12 +177,19 @@ fun TextInput(
                             completionScroll = completionScrollState,
                             completionDismissedForValue = completionDismissedForValueState,
                             completionWindow = completionWindow,
+                            completionVisible = showCompletion,
                             completionTransform = completionTransform,
                         ),
                     ) { b ->
-                        onKeyEvent = { event -> handleKey(b, event) }
+                        val modifierKeyHandler = bodyModifierKeyHandlerState.value
+                        val modifierPasteHandler = bodyModifierPasteHandlerState.value
+                        onKeyEvent = { event ->
+                            modifierKeyHandler?.invoke(event) == true || handleKey(b, event)
+                        }
                         onPaste = { text ->
-                            if (b.enableEditing && b.features.clipboard) {
+                            if (modifierPasteHandler?.invoke(text) == true) {
+                                true
+                            } else if (b.enableEditing && b.features.clipboard) {
                                 insertText(b, text)
                             } else false
                         }
@@ -215,6 +235,7 @@ private data class TextInputBindings(
     val completionScroll: androidx.compose.runtime.MutableState<Int>,
     val completionDismissedForValue: androidx.compose.runtime.MutableState<String?>,
     val completionWindow: CompletionWindow,
+    val completionVisible: Boolean,
     val completionTransform: (String, String) -> String,
 )
 
@@ -339,7 +360,7 @@ private fun deleteToLineStart(b: TextInputBindings) {
 private fun handleKey(b: TextInputBindings, event: KeyEvent): Boolean {
     // Enter submits regardless of editing state.
     if (event.key == Key.ENTER) {
-        if (b.enableEditing && b.completionWindow.isVisible) {
+        if (b.enableEditing && b.completionVisible) {
             acceptCompletion(b)
             return true
         }
@@ -349,12 +370,12 @@ private fun handleKey(b: TextInputBindings, event: KeyEvent): Boolean {
 
     if (!b.enableEditing) return false
 
-    if (event.key == Key.ESCAPE && b.completionWindow.isVisible) {
+    if (event.key == Key.ESCAPE && b.completionVisible) {
         b.completionDismissedForValue.value = b.value
         return true
     }
 
-    if (b.completionWindow.isVisible) {
+    if (b.completionVisible) {
         when (event.key) {
             Key.ARROW_UP -> {
                 val next = (b.completionSelection.value - 1).coerceAtLeast(0)
