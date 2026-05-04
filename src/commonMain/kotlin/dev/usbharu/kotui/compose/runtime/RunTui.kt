@@ -168,15 +168,22 @@ fun runTui(
         fun dispatchKey(event: KeyEvent): Boolean {
             if (event.key == Key.TAB) {
                 focusManager.focusNext(rootNode)
+                keyEventState.value = null
                 return true
             }
 
             val focusedNode = focusManager.findFocusedNode(rootNode)
-            if (focusedNode?.onKeyEvent?.invoke(event) == true) return true
+            if (focusedNode?.onKeyEvent?.invoke(event) == true) {
+                keyEventState.value = null
+                return true
+            }
             if (focusedNode != null) {
                 var current = focusedNode.parent
                 while (current != null) {
-                    if (current.onKeyEvent?.invoke(event) == true) return true
+                    if (current.onKeyEvent?.invoke(event) == true) {
+                        keyEventState.value = null
+                        return true
+                    }
                     current = current.parent
                 }
             }
