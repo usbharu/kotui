@@ -36,6 +36,13 @@ class AnsiKeyDecoderTest {
     }
 
     @Test
+    fun crlfEnterIsSingleEnter() {
+        val events = decode("\r\n")
+        assertEquals(1, events.size)
+        assertEquals(Key.ENTER, (events[0] as KeyEvent).key)
+    }
+
+    @Test
     fun ctrlLetter() {
         val events = decode("\u0001\u0003\u0016") // Ctrl+A, Ctrl+C, Ctrl+V
         assertEquals(3, events.size)
