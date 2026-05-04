@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import dev.usbharu.kotui.compose.layout.AlignItems
 import dev.usbharu.kotui.compose.layout.JustifyContent
 import dev.usbharu.kotui.compose.modifier.*
+import dev.usbharu.kotui.compose.runtime.Key
 import dev.usbharu.kotui.compose.runtime.LocalQuit
 import dev.usbharu.kotui.compose.runtime.onKey
 import dev.usbharu.kotui.compose.runtime.runTui
@@ -520,9 +521,19 @@ private fun TextAreaShowcase(onBack: () -> Unit) {
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
     val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
 
-    onKey { ev -> if (ev.char == '\u001B') onBack() }
-
-    Column(modifier = Modifier.focusScope(), gap = 1) {
+    Column(
+        modifier = Modifier
+            .focusScope()
+            .onKeyEvent { ev ->
+                if (ev.key == Key.ESCAPE) {
+                    onBack()
+                    true
+                } else {
+                    false
+                }
+            },
+        gap = 1,
+    ) {
         Text("  === TextArea Showcase ===", title)
         Text("  Tab=focus  Enter=new line  Ctrl+S=save  Esc=back", dim)
 
