@@ -8,6 +8,10 @@ fun interface TextInputValidator {
         val AsciiDigitsOnly = TextInputValidator { value ->
             value.all { it in '0'..'9' }
         }
+        @Deprecated(
+            message = "Use AsciiDigitsOnly to make the ASCII-only behavior explicit.",
+            replaceWith = ReplaceWith("TextInputValidator.AsciiDigitsOnly"),
+        )
         val DigitsOnly = AsciiDigitsOnly
         val AsciiLettersOnly = TextInputValidator { value ->
             value.all { it in 'a'..'z' || it in 'A'..'Z' }

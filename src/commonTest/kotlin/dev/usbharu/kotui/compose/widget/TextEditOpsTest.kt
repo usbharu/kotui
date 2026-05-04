@@ -85,7 +85,7 @@ class TextEditOpsTest {
             cursor = 2,
             selection = null,
             insert = "3",
-            inputValidator = TextInputValidator.DigitsOnly,
+            inputValidator = TextInputValidator.AsciiDigitsOnly,
         )
 
         assertEquals("123" to 3, replacement)
@@ -98,7 +98,7 @@ class TextEditOpsTest {
             cursor = 2,
             selection = null,
             insert = "a3",
-            inputValidator = TextInputValidator.DigitsOnly,
+            inputValidator = TextInputValidator.AsciiDigitsOnly,
         )
 
         assertNull(replacement)

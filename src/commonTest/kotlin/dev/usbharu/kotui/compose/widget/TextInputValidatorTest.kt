@@ -13,18 +13,19 @@ class TextInputValidatorTest {
     }
 
     @Test
-    fun digitsOnlyAllowsEmptyAndAsciiDigits() {
-        assertTrue(TextInputValidator.DigitsOnly.isValid(""))
-        assertTrue(TextInputValidator.DigitsOnly.isValid("123"))
-        assertFalse(TextInputValidator.DigitsOnly.isValid("12a"))
-    }
-
-    @Test
     fun asciiDigitsOnlyAllowsEmptyAndAsciiDigits() {
         assertTrue(TextInputValidator.AsciiDigitsOnly.isValid(""))
         assertTrue(TextInputValidator.AsciiDigitsOnly.isValid("123"))
-        assertFalse(TextInputValidator.AsciiDigitsOnly.isValid("１２３"))
         assertFalse(TextInputValidator.AsciiDigitsOnly.isValid("12a"))
+    }
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun digitsOnlyIsDeprecatedAsciiDigitsAlias() {
+        assertTrue(TextInputValidator.DigitsOnly.isValid(""))
+        assertTrue(TextInputValidator.DigitsOnly.isValid("123"))
+        assertFalse(TextInputValidator.DigitsOnly.isValid("１２３"))
+        assertFalse(TextInputValidator.DigitsOnly.isValid("12a"))
     }
 
     @Test

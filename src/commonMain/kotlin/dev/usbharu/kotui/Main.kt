@@ -227,7 +227,7 @@ private fun Showcase(onBack: () -> Unit) {
                     onValueChange = { digitsOnly = it },
                     placeholder = "12345",
                     modifier = Modifier.width(18),
-                    inputValidator = TextInputValidator.DigitsOnly,
+                    inputValidator = TextInputValidator.AsciiDigitsOnly,
                 )
             }
             Column {

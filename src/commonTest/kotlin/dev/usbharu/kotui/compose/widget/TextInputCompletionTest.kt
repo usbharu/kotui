@@ -85,7 +85,7 @@ class TextInputCompletionTest {
             currentValue = "12",
             candidate = "12a",
             transform = { _, candidate -> candidate },
-            inputValidator = TextInputValidator.DigitsOnly,
+            inputValidator = TextInputValidator.AsciiDigitsOnly,
         )
 
         assertNull(commit)
