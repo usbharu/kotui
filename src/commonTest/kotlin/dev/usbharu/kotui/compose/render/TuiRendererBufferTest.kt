@@ -161,6 +161,74 @@ class TuiRendererBufferTest {
     }
 
     @Test
+    fun imageFallbackRendersWhenNoImageProtocolIsSupported() {
+        SixelSupport.overrideForTesting(TerminalCaps.UNSUPPORTED)
+        val node = TuiNode("Image").apply {
+            bounds = Rect(0, 0, 2, 1)
+            image = image(fallback = "ALT")
+        }
+        val renderer = TuiRenderer(8, 3)
+
+        renderer.renderToBuffer(root(node), FocusManager())
+
+        assertEquals("A", renderer.buffer.get(0, 0).content)
+        assertEquals(" ", renderer.buffer.get(1, 0).content)
+        assertEquals(1, renderer.buffer.imagePlacements().size)
+    }
+
+    @Test
+    fun imageFallbackIsSkippedWhenSixelIsSupported() {
+        SixelSupport.overrideForTesting(TerminalCaps(sixelSupported = true, kittySupported = false))
+        val node = TuiNode("Image").apply {
+            bounds = Rect(0, 0, 4, 2)
+            image = image(fallback = "ALT")
+        }
+        val renderer = TuiRenderer(8, 3)
+
+        renderer.renderToBuffer(root(node), FocusManager())
+
+        assertEquals(" ", renderer.buffer.get(0, 0).content)
+        assertEquals(1, renderer.buffer.imagePlacements().size)
+    }
+
+    @Test
+    fun parentZIndexContributesToChildren() {
+        val child = TuiNode("Text").apply {
+            bounds = Rect(0, 0, 4, 1)
+            text = "low"
+            zIndex = 1
+        }
+        val parent = TuiNode("Box").apply {
+            bounds = Rect(0, 0, 4, 1)
+            zIndex = 5
+            insertAt(0, child)
+        }
+        val renderer = TuiRenderer(8, 3)
+
+        renderer.renderToBuffer(root(parent), FocusManager())
+
+        assertEquals("l", renderer.buffer.get(0, 0).content)
+        assertEquals(6, renderer.buffer.get(0, 0).zIndex)
+    }
+
+    @Test
+    fun highlightClampsNegativeStartAndEmptyCellsUseBlankContent() {
+        val node = TuiNode("Text").apply {
+            bounds = Rect(1, 0, 4, 1)
+            text = "a"
+            textHighlights = listOf(TextHighlight(-2, 3, Style(reverse = true)))
+        }
+        val renderer = TuiRenderer(8, 3)
+
+        renderer.renderToBuffer(root(node), FocusManager())
+
+        assertEquals("a", renderer.buffer.get(1, 0).content)
+        assertTrue(renderer.buffer.get(1, 0).style.reverse)
+        assertEquals(" ", renderer.buffer.get(2, 0).content)
+        assertTrue(renderer.buffer.get(2, 0).style.reverse)
+    }
+
+    @Test
     fun fillCharRendersOnlyInsideNodeBounds() {
         val node = TuiNode("Fill").apply {
             bounds = Rect(1, 1, 2, 2)
