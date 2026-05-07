@@ -1,5 +1,8 @@
 package dev.usbharu.kotui.compose.widget
 
+import androidx.compose.runtime.mutableStateOf
+import dev.usbharu.kotui.compose.modifier.Modifier
+import dev.usbharu.kotui.compose.modifier.width
 import dev.usbharu.kotui.compose.node.LayoutPolicy
 import dev.usbharu.kotui.core.Style
 import dev.usbharu.kotui.utils.Ansi
@@ -28,6 +31,27 @@ class TextWidgetCompositionTest {
     }
 
     @Test
+    fun textRecomposesContentAndAppliesModifierWidth() = runBlocking {
+        val value = mutableStateOf("first")
+        val session = composeWithDefaults {
+            Text(value.value, Modifier.width(12))
+        }
+
+        session.awaitIdle()
+        val text = session.root.children.single()
+        assertEquals("first", text.text)
+        assertEquals(12, text.preferredWidth)
+
+        value.value = "second"
+        session.applySnapshotAndAwaitIdle()
+
+        assertEquals("second", text.text)
+        assertEquals(12, text.preferredWidth)
+
+        session.dispose()
+    }
+
+    @Test
     fun badgeSetsStyledTextWithPadding() = runBlocking {
         val session = composeWithDefaults {
             Badge("ok")
@@ -45,6 +69,21 @@ class TextWidgetCompositionTest {
 
         val expectedStyle = Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_BRIGHT_WHITE, bold = true)
         assertEquals(expectedStyle, badge.style)
+
+        session.dispose()
+    }
+
+    @Test
+    fun badgePreferredWidthUsesDisplayWidthForWideCharacters() = runBlocking {
+        val session = composeWithDefaults {
+            Badge("界")
+        }
+
+        session.awaitIdle()
+
+        val badge = session.root.children.single()
+        assertEquals(" 界 ", badge.text)
+        assertEquals(4, badge.preferredWidth)
 
         session.dispose()
     }

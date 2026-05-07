@@ -1,5 +1,6 @@
 package dev.usbharu.kotui.compose.widget
 
+import androidx.compose.runtime.mutableStateOf
 import dev.usbharu.kotui.compose.node.LayoutPolicy
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -30,6 +31,32 @@ class PanelCompositionTest {
     }
 
     @Test
+    fun panelRecomposesTitleAndContent() = runBlocking {
+        val title = mutableStateOf("one")
+        val showSecond = mutableStateOf(false)
+        val session = composeWithDefaults {
+            Panel(title.value) {
+                Text("first")
+                if (showSecond.value) Text("second")
+            }
+        }
+
+        session.awaitIdle()
+        val panel = session.root.children.single()
+        assertEquals("one", panel.borderTitle)
+        assertEquals(1, panel.children.size)
+
+        title.value = "two"
+        showSecond.value = true
+        session.applySnapshotAndAwaitIdle()
+
+        assertEquals("two", panel.borderTitle)
+        assertEquals(listOf("first", "second"), panel.children.map { it.text })
+
+        session.dispose()
+    }
+
+    @Test
     fun modalSetsFocusScopeAndHighZIndex() = runBlocking {
         val session = composeWithDefaults {
             Modal("dialog") {
@@ -46,6 +73,8 @@ class PanelCompositionTest {
         assertEquals("dialog", modal.borderTitle)
         assertTrue(modal.focusScope)
         assertTrue(modal.zIndex >= 10)
+        assertEquals(1, modal.children.size)
+        assertEquals("modal content", modal.children.single().text)
 
         session.dispose()
     }

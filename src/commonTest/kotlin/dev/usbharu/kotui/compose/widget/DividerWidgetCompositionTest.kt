@@ -1,7 +1,9 @@
 package dev.usbharu.kotui.compose.widget
 
 import dev.usbharu.kotui.compose.modifier.Modifier
+import dev.usbharu.kotui.compose.modifier.height
 import dev.usbharu.kotui.compose.modifier.size
+import dev.usbharu.kotui.compose.modifier.width
 import dev.usbharu.kotui.compose.node.LayoutPolicy
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -28,6 +30,22 @@ class DividerWidgetCompositionTest {
     }
 
     @Test
+    fun dividerModifierCanOverrideDefaultHeightAndWidth() = runBlocking {
+        val session = composeWithDefaults {
+            Divider('-', Modifier.size(20, 2))
+        }
+
+        session.awaitIdle()
+
+        val divider = session.root.children.single()
+        assertEquals(20, divider.preferredWidth)
+        assertEquals(2, divider.preferredHeight)
+        assertEquals('-', divider.fillChar)
+
+        session.dispose()
+    }
+
+    @Test
     fun verticalDividerSetsFillCharAndPreferredWidth() = runBlocking {
         val session = composeWithDefaults {
             VerticalDivider('|')
@@ -40,6 +58,21 @@ class DividerWidgetCompositionTest {
         assertEquals(LayoutPolicy.LEAF, vd.layoutPolicy)
         assertEquals(1, vd.preferredWidth)
         assertEquals('|', vd.fillChar)
+
+        session.dispose()
+    }
+
+    @Test
+    fun verticalDividerModifierCanOverrideWidthAndSetHeight() = runBlocking {
+        val session = composeWithDefaults {
+            VerticalDivider('|', Modifier.width(3).height(4))
+        }
+
+        session.awaitIdle()
+
+        val divider = session.root.children.single()
+        assertEquals(3, divider.preferredWidth)
+        assertEquals(4, divider.preferredHeight)
 
         session.dispose()
     }
@@ -58,6 +91,24 @@ class DividerWidgetCompositionTest {
         assertNull(spacer.text)
         assertEquals(2, spacer.preferredWidth)
         assertEquals(1, spacer.preferredHeight)
+
+        session.dispose()
+    }
+
+    @Test
+    fun spacerDefaultsHaveNoIntrinsicSize() = runBlocking {
+        val session = composeWithDefaults {
+            Spacer()
+        }
+
+        session.awaitIdle()
+
+        val spacer = session.root.children.single()
+        assertEquals("Spacer", spacer.tag)
+        assertNull(spacer.preferredWidth)
+        assertNull(spacer.preferredHeight)
+        assertNull(spacer.text)
+        assertNull(spacer.fillChar)
 
         session.dispose()
     }
