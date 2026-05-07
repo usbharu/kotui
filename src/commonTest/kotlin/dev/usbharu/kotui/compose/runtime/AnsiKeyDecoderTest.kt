@@ -278,6 +278,17 @@ class AnsiKeyDecoderTest {
     }
 
     @Test
+    fun emptyCsiModifierParamDoesNotEnableAllModifiers() {
+        val events = decode("\u001B[1;C")
+
+        val key = events.single() as KeyEvent
+        assertEquals(Key.ARROW_RIGHT, key.key)
+        assertEquals(false, key.ctrl)
+        assertEquals(false, key.alt)
+        assertEquals(false, key.shift)
+    }
+
+    @Test
     fun pasteEscPrefixOnlyIsFlushedAsLiteralContent() {
         val events = decode("\u001B[200~a\u001Bx\u001B[201~")
 
