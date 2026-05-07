@@ -1,11 +1,16 @@
 @file:OptIn(ExperimentalMainFunctionArgumentsDsl::class)
 
+import kotlinx.kover.gradle.plugin.dsl.AggregationType
+import kotlinx.kover.gradle.plugin.dsl.CoverageUnit
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalMainFunctionArgumentsDsl
+import org.w3c.dom.Element
+import javax.xml.parsers.DocumentBuilderFactory
 
 plugins {
     kotlin("multiplatform") version "2.3.10"
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
+    id("org.jetbrains.kotlinx.kover") version "0.9.8"
 }
 
 group = "dev.usbharu"
@@ -51,4 +56,129 @@ kotlin {
 
 tasks.withType<JavaExec> {
     standardInput = System.`in`
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "dev.usbharu.kotui.ComposableSingletons*",
+                    "dev.usbharu.kotui.MainKt",
+                    "dev.usbharu.kotui.Main_jvmKt",
+                    "dev.usbharu.kotui.TerminalResize_jvmKt*",
+                    "dev.usbharu.kotui.TerminalKt",
+                    "dev.usbharu.kotui.compose.clipboard.SystemClipboardWrite_jvmKt",
+                    "dev.usbharu.kotui.compose.runtime.MainLoop_jvmKt*",
+                    "dev.usbharu.kotui.compose.runtime.Time_jvmKt",
+                    "dev.usbharu.kotui.utils.SixelSupport",
+                )
+            }
+        }
+        total {
+            xml {
+                onCheck = true
+            }
+            verify {
+                rule("CommonMain branch coverage") {
+                    minBound(90, CoverageUnit.BRANCH, AggregationType.COVERED_PERCENTAGE)
+                }
+            }
+        }
+    }
+}
+
+tasks.register("verifyCommonMainFileBranchCoverage") {
+    group = "verification"
+    description = "Verifies that each root commonMain source file with branch counters reaches 90% branch coverage."
+    dependsOn("koverXmlReport")
+
+    doLast {
+        val reportFile = listOf(
+            layout.buildDirectory.file("reports/kover/report.xml").get().asFile,
+            layout.buildDirectory.file("reports/kover/xml/report.xml").get().asFile,
+            layout.buildDirectory.file("reports/kover/xml/result.xml").get().asFile,
+        ).firstOrNull { it.isFile }
+            ?: layout.buildDirectory.dir("reports/kover").get().asFile
+                .walkTopDown()
+                .firstOrNull { it.isFile && it.extension == "xml" }
+            ?: throw GradleException("Kover XML report was not found under build/reports/kover.")
+
+        val commonMainRoot = layout.projectDirectory.dir("src/commonMain/kotlin").asFile
+        val commonMainFiles = commonMainRoot
+            .walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .map { it.relativeTo(commonMainRoot).invariantSeparatorsPath }
+            .toSet()
+
+        val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(reportFile)
+        val packages = document.getElementsByTagName("package")
+        val excludedFiles = setOf(
+            "dev/usbharu/kotui/Main.kt",
+            "dev/usbharu/kotui/Terminal.kt",
+        )
+        val failures = mutableListOf<String>()
+        var totalCovered = 0
+        var totalBranches = 0
+
+        for (packageIndex in 0 until packages.length) {
+            val packageElement = packages.item(packageIndex) as Element
+            val packageName = packageElement.getAttribute("name")
+            if (!packageName.startsWith("dev/usbharu/kotui")) continue
+
+            val sourceFiles = packageElement.getElementsByTagName("sourcefile")
+            for (sourceIndex in 0 until sourceFiles.length) {
+                val sourceElement = sourceFiles.item(sourceIndex) as Element
+                val sourcePath = "$packageName/${sourceElement.getAttribute("name")}"
+                if (sourcePath !in commonMainFiles) continue
+                if (sourcePath in excludedFiles) continue
+
+                val counters = sourceElement.getElementsByTagName("counter")
+                for (counterIndex in 0 until counters.length) {
+                    val counter = counters.item(counterIndex) as Element
+                    if (counter.getAttribute("type") != "BRANCH") continue
+
+                    val missed = counter.getAttribute("missed").toInt()
+                    val covered = counter.getAttribute("covered").toInt()
+                    val branches = missed + covered
+                    if (branches == 0) continue
+
+                    totalCovered += covered
+                    totalBranches += branches
+
+                    val percentage = covered * 100.0 / branches
+                    if (percentage < 90.0) {
+                        failures += "%s: %.2f%% (%d/%d branches)".format(
+                            sourcePath,
+                            percentage,
+                            covered,
+                            branches,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (totalBranches == 0) {
+            throw GradleException("No commonMain branch counters were found in ${reportFile.path}.")
+        }
+
+        val totalPercentage = totalCovered * 100.0 / totalBranches
+        logger.lifecycle(
+            "Root commonMain file branch coverage: %.2f%% (%d/%d branches)".format(
+                totalPercentage,
+                totalCovered,
+                totalBranches,
+            )
+        )
+
+        if (failures.isNotEmpty()) {
+            throw GradleException(
+                buildString {
+                    appendLine("Files below 90% branch coverage:")
+                    failures.sorted().forEach { appendLine(" - $it") }
+                }
+            )
+        }
+    }
 }

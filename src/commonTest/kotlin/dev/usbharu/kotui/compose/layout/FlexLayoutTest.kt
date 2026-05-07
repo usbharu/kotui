@@ -199,4 +199,103 @@ class FlexLayoutTest {
         assertEquals(15, a.bounds.width)
         assertEquals(15, b.bounds.width)
     }
+
+    @Test
+    fun emptyRowKeepsRootBounds() {
+        val root = row(children = emptyList())
+
+        LayoutEngine.layout(root, screenWidth = 12, screenHeight = 3)
+
+        assertEquals(12, root.bounds.width)
+        assertEquals(3, root.bounds.height)
+    }
+
+    @Test
+    fun columnWithBorderInsetsChildrenAndShrinksToContentWhenHeightIsInferred() {
+        val child = leaf(height = 2)
+        val root = TuiNode("Panel").apply {
+            layoutPolicy = LayoutPolicy.COLUMN
+            drawBorder = true
+            preferredWidth = 10
+            insertAt(0, child)
+        }
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 8)
+
+        assertEquals(1, child.bounds.x)
+        assertEquals(1, child.bounds.y)
+        assertEquals(8, child.bounds.width)
+        assertEquals(4, root.bounds.height)
+    }
+
+    @Test
+    fun rowSpaceAroundAddsHalfSlotBeforeFirstChild() {
+        val a = leaf(width = 2, height = 1)
+        val b = leaf(width = 2, height = 1)
+        val root = row(justify = JustifyContent.SpaceAround, children = listOf(a, b))
+
+        LayoutEngine.layout(root, screenWidth = 12, screenHeight = 3)
+
+        assertEquals(2, a.bounds.x)
+        assertEquals(8, b.bounds.x)
+    }
+
+    @Test
+    fun singleChildSpaceBetweenDoesNotMoveChild() {
+        val a = leaf(width = 3, height = 1)
+        val root = row(justify = JustifyContent.SpaceBetween, children = listOf(a))
+
+        LayoutEngine.layout(root, screenWidth = 12, screenHeight = 3)
+
+        assertEquals(0, a.bounds.x)
+    }
+
+    @Test
+    fun boxKeepsExistingChildOffsetAndAppliesPreferredSize() {
+        val child = leaf(width = 3, height = 2).apply {
+            bounds = dev.usbharu.kotui.core.Rect(4, 5, 99, 99)
+        }
+        val root = TuiNode("Box").apply {
+            layoutPolicy = LayoutPolicy.BOX
+            insertAt(0, child)
+        }
+
+        LayoutEngine.layout(root, screenWidth = 20, screenHeight = 10)
+
+        assertEquals(4, child.bounds.x)
+        assertEquals(5, child.bounds.y)
+        assertEquals(3, child.bounds.width)
+        assertEquals(2, child.bounds.height)
+    }
+
+    @Test
+    fun centerDefaultsChildHeightToOneWhenPreferredHeightIsMissing() {
+        val child = leaf(width = 4)
+        val root = TuiNode("Center").apply {
+            layoutPolicy = LayoutPolicy.CENTER
+            insertAt(0, child)
+        }
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 5)
+
+        assertEquals(3, child.bounds.x)
+        assertEquals(2, child.bounds.y)
+        assertEquals(4, child.bounds.width)
+        assertEquals(1, child.bounds.height)
+    }
+
+    @Test
+    fun zeroSizedConstraintsDoNotProduceNegativeChildBounds() {
+        val child = leaf(height = 2)
+        val root = TuiNode("Column").apply {
+            layoutPolicy = LayoutPolicy.COLUMN
+            drawBorder = true
+            insertAt(0, child)
+        }
+
+        LayoutEngine.layout(root, screenWidth = 1, screenHeight = 1)
+
+        assertEquals(0, child.bounds.width)
+        assertEquals(2, child.bounds.height)
+    }
 }

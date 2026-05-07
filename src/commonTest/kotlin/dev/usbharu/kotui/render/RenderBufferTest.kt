@@ -79,4 +79,73 @@ class RenderBufferTest {
         assertEquals(" ", buf.get(0, 0).content)
         assertEquals(" ", buf.get(1, 0).content)
     }
+
+    @Test
+    fun outOfBoundsWritesAreIgnoredAndReadsReturnBlankCell() {
+        val buf = RenderBuffer(2, 1)
+        buf.set(-1, 0, 'X', Style(), 0)
+        buf.set(0, -1, 'Y', Style(), 0)
+        buf.set(3, 0, 'Z', Style(), 0)
+        buf.setGrapheme(0, 0, "", 0, Style(), 0)
+
+        assertEquals(" ", buf.get(0, 0).content)
+        assertEquals(" ", buf.get(-1, 0).content)
+        assertEquals(" ", buf.get(0, 99).content)
+    }
+
+    @Test
+    fun lowerZIndexCannotOverwriteHigherZIndexCell() {
+        val buf = RenderBuffer(3, 1)
+        buf.set(0, 0, 'A', Style(), 5)
+        buf.set(0, 0, 'b', Style(), 4)
+
+        assertEquals("A", buf.get(0, 0).content)
+        assertEquals(5, buf.get(0, 0).zIndex)
+    }
+
+    @Test
+    fun wideWriteRefusesToCrossHigherZIndexContinuationCell() {
+        val buf = RenderBuffer(3, 1)
+        buf.set(1, 0, 'X', Style(), 10)
+        buf.writeString(0, 0, "あ", Style(), 0)
+
+        assertEquals(" ", buf.get(0, 0).content)
+        assertEquals("X", buf.get(1, 0).content)
+    }
+
+    @Test
+    fun overwritingLeftHalfOfWideCharLeavesRightContinuationUntouched() {
+        val buf = RenderBuffer(4, 1)
+        buf.writeString(1, 0, "あ", Style(), 0)
+
+        buf.set(1, 0, 'A', Style(), 1)
+
+        assertEquals("A", buf.get(1, 0).content)
+        assertTrue(buf.get(2, 0).isContinuation)
+    }
+
+    @Test
+    fun resizeNoOpPreservesCellsAndResizeClearsCellsAndPlacements() {
+        val buf = RenderBuffer(3, 1)
+        buf.writeString(0, 0, "abc", Style(), 0)
+        buf.resize(3, 1)
+        assertEquals("a", buf.get(0, 0).content)
+
+        buf.placeImage(0, 0, dev.usbharu.kotui.compose.widget.TerminalImage(ByteArray(4), 1, 1), 0)
+        assertTrue(buf.imagePlacements().isNotEmpty())
+
+        buf.resize(2, 2)
+        assertEquals(2, buf.width)
+        assertEquals(2, buf.height)
+        assertEquals(" ", buf.get(0, 0).content)
+        assertTrue(buf.imagePlacements().isEmpty())
+    }
+
+    @Test
+    fun writeStringSkipsRowsOutsideBuffer() {
+        val buf = RenderBuffer(3, 1)
+        buf.writeString(0, 2, "abc", Style(), 0)
+
+        assertEquals(" ", buf.get(0, 0).content)
+    }
 }

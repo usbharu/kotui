@@ -144,4 +144,51 @@ class SixelSupportTest {
         val merged = mergeCaps(probe = null, env = caps)
         assertTrue(merged.kittySupported, "override lets Ghostty kitty env propagate")
     }
+
+    @Test
+    fun forceGraphicsTrueStringAlsoOverridesMultiplexer() {
+        val caps = detectCapsFromEnv(env(
+            "TERM" to "screen-256color",
+            "KOTUI_FORCE_GRAPHICS" to "true",
+        ))
+
+        assertFalse(caps.insideMultiplexer)
+    }
+
+    @Test
+    fun screenAndStyAreDetectedAsMultiplexers() {
+        val termCaps = detectCapsFromEnv(env("TERM" to "screen-256color"))
+        assertTrue(termCaps.insideMultiplexer)
+
+        val styCaps = detectCapsFromEnv(env("STY" to "123.session"))
+        assertTrue(styCaps.insideMultiplexer)
+    }
+
+    @Test
+    fun additionalEnvHintsDetectKittyAndSixelProtocols() {
+        assertTrue(detectCapsFromEnv(env("KITTY_WINDOW_ID" to "1")).kitty)
+        assertTrue(detectCapsFromEnv(env("WEZTERM_EXECUTABLE" to "/usr/bin/wezterm")).kitty)
+        assertTrue(detectCapsFromEnv(env("WEZTERM_EXECUTABLE" to "/usr/bin/wezterm")).sixel)
+        assertTrue(detectCapsFromEnv(env("TERM_PROGRAM" to "mintty")).sixel)
+        assertTrue(detectCapsFromEnv(env("KONSOLE_VERSION" to "240800")).sixel)
+        assertTrue(detectCapsFromEnv(env("TERM" to "mlterm")).sixel)
+    }
+
+    @Test
+    fun terminalResponseParserKeepsDefaultsForMalformedCellSizes() {
+        val caps = parseTerminalResponses("\u001B[?1;2c\u001B[6;bad;0t\u001B[6;24;12t")
+
+        assertFalse(caps.sixelSupported)
+        assertEquals(12, caps.cellPixelWidth)
+        assertEquals(24, caps.cellPixelHeight)
+    }
+
+    @Test
+    fun terminalResponseParserIgnoresUnterminatedReplies() {
+        val caps = parseTerminalResponses("\u001B[?1;4\u001B[6;24;12")
+
+        assertFalse(caps.sixelSupported)
+        assertEquals(10, caps.cellPixelWidth)
+        assertEquals(20, caps.cellPixelHeight)
+    }
 }

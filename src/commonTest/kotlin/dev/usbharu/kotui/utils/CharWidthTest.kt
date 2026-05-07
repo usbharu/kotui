@@ -86,4 +86,23 @@ class CharWidthTest {
         val width = s.displayWidth()
         assertTrue(width == 1 || width == 2, "got $width")
     }
+
+    @Test
+    fun malformedSurrogatesAreTreatedAsSingleCodeUnits() {
+        assertEquals(1, "\uD83D".displayWidth())
+        assertEquals(1, "\uDC4D".displayWidth())
+        assertEquals("\uD83D", "\uD83D".takeDisplayWidth(1))
+    }
+
+    @Test
+    fun takeDisplayWidthReturnsOriginalWhenNoTruncationIsNeeded() {
+        val value = "abc"
+        assertTrue(value === value.takeDisplayWidth(3))
+        assertEquals("", value.takeDisplayWidth(-1))
+    }
+
+    @Test
+    fun padDisplayEndKeepsStringWhenWidthAlreadyMatches() {
+        assertEquals("あ", "あ".padDisplayEnd(2, '.'))
+    }
 }

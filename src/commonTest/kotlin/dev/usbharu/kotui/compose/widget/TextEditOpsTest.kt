@@ -85,4 +85,33 @@ class TextEditOpsTest {
         assertEquals(3, TextEditOps.clampToBoundary(s, 3))
         assertEquals(0, TextEditOps.clampToBoundary(s, 0))
     }
+
+    @Test
+    fun wordBoundariesTreatNonAsciiAsSingleNonWordCodePoints() {
+        val s = "あfoo"
+
+        assertEquals(4, TextEditOps.nextWordBoundary(s, 0))
+        assertEquals(1, TextEditOps.prevWordBoundary(s, 4))
+    }
+
+    @Test
+    fun movementHandlesUnpairedSurrogatesAsSingleCodeUnits() {
+        val s = "\uD83Dx\uDC4D"
+
+        assertEquals(1, TextEditOps.nextCodePoint(s, 0))
+        assertEquals(2, TextEditOps.nextCodePoint(s, 1))
+        assertEquals(2, TextEditOps.prevCodePoint(s, 3))
+        assertEquals(1, TextEditOps.clampToBoundary(s, 1))
+    }
+
+    @Test
+    fun deleteRangeClampsStartAndEnd() {
+        val (fromNegative, negativeCursor) = TextEditOps.deleteRange("hello", -3, 2)
+        assertEquals("llo", fromNegative)
+        assertEquals(0, negativeCursor)
+
+        val (reversed, reversedCursor) = TextEditOps.deleteRange("hello", 4, 2)
+        assertEquals("hello", reversed)
+        assertEquals(4, reversedCursor)
+    }
 }
