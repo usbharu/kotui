@@ -58,7 +58,7 @@ fun Spinner(
     chars: List<Char> = DEFAULT_FRAMES,
     modifier: Modifier = Modifier,
 ) {
-    val display = if (chars.isEmpty()) " " else chars[((frame % chars.size) + chars.size) % chars.size].toString()
+    val display = spinnerFrame(frame, chars)
 
     ComposeNode<TuiNode, TuiApplier>(
         factory = {
