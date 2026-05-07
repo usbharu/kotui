@@ -164,4 +164,12 @@ class TextEditOpsTest {
         assertEquals("he", value)
         assertEquals(2, cursor)
     }
+
+    @Test
+    fun unpairedSurrogatesAtEdgesDoNotMoveAsPairs() {
+        assertEquals(1, TextEditOps.nextCodePoint("\uD83D", 0))
+        assertEquals(0, TextEditOps.prevCodePoint("\uDC4D", 1))
+        assertEquals(0, TextEditOps.clampToBoundary("\uDC4D", 0))
+        assertEquals(1, TextEditOps.clampToBoundary("\uD83D", 1))
+    }
 }

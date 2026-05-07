@@ -303,4 +303,22 @@ class AnsiKeyDecoderTest {
         assertTrue(decoder.flush().isEmpty())
         assertEquals(false, decoder.hasPending())
     }
+
+    @Test
+    fun emptyIncompletePasteFlushesNoEvent() {
+        val decoder = AnsiKeyDecoder()
+        "\u001B[200~".forEach { decoder.feed(it) }
+
+        assertTrue(decoder.hasPending())
+        assertTrue(decoder.flush().isEmpty())
+    }
+
+    @Test
+    fun ss3CoversRightLeftAndEnd() {
+        val events = decode("\u001BOC\u001BOD\u001BOF")
+
+        assertEquals(Key.ARROW_RIGHT, (events[0] as KeyEvent).key)
+        assertEquals(Key.ARROW_LEFT, (events[1] as KeyEvent).key)
+        assertEquals(Key.END, (events[2] as KeyEvent).key)
+    }
 }
