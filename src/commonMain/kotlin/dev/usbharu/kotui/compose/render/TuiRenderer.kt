@@ -181,7 +181,7 @@ class TuiRenderer(screenWidth: Int, screenHeight: Int) {
 
         if (cursorNode != null) {
             val col = cursorNode.bounds.x + (cursorNode.cursorCol ?: 0) + 1  // ANSI is 1-based
-            val row = cursorNode.bounds.y + 1
+            val row = cursorNode.bounds.y + (cursorNode.cursorRow ?: 0) + 1
             sb.append(Ansi.cursorTo(row, col))
             sb.append(Ansi.CURSOR_SHOW)
         } else {

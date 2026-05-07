@@ -48,6 +48,9 @@ class TuiNode(val tag: String = "Node") {
     /** Column offset within this node where the terminal cursor should be placed. null = no cursor. */
     var cursorCol: Int? = null
 
+    /** Row offset within this node where the terminal cursor should be placed. 0 if unset. */
+    var cursorRow: Int? = null
+
     /**
      * Optional styled ranges applied on top of [text] when rendering. Ranges are
      * expressed in terminal cell columns relative to the node's left edge. Used for

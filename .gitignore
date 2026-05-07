@@ -50,3 +50,5 @@ hs_err_pid*.log
 replay_pid*.log
 
 .claude/settings.local.json
+.gradle-local
+/local.properties

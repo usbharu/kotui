@@ -60,6 +60,17 @@ class TextEditOpsTest {
     }
 
     @Test
+    fun replaceClampsInvalidBounds() {
+        val (cursorValue, cursorPos) = TextEditOps.replace("hello", 99, null, "!")
+        assertEquals("hello!", cursorValue)
+        assertEquals(6, cursorPos)
+
+        val (selectionValue, selectionPos) = TextEditOps.replace("hello", 0, 1..99, "!")
+        assertEquals("h!", selectionValue)
+        assertEquals(2, selectionPos)
+    }
+
+    @Test
     fun deleteRange() {
         val (v, c) = TextEditOps.deleteRange("hello", 1, 4)
         assertEquals("ho", v)
