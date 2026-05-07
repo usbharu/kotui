@@ -70,7 +70,6 @@ kover {
                     "dev.usbharu.kotui.TerminalResize_jvmKt*",
                     "dev.usbharu.kotui.TerminalKt",
                     "dev.usbharu.kotui.compose.clipboard.SystemClipboardWrite_jvmKt",
-                    "dev.usbharu.kotui.compose.render.TuiRenderer",
                     "dev.usbharu.kotui.compose.runtime.RunTuiKt",
                     "dev.usbharu.kotui.compose.runtime.MainLoop_jvmKt*",
                     "dev.usbharu.kotui.compose.runtime.Time_jvmKt",
@@ -140,7 +139,6 @@ tasks.register("verifyCommonMainFileBranchCoverage") {
         val excludedFiles = setOf(
             "dev/usbharu/kotui/Main.kt",
             "dev/usbharu/kotui/Terminal.kt",
-            "dev/usbharu/kotui/compose/render/TuiRenderer.kt",
             "dev/usbharu/kotui/compose/runtime/RunTui.kt",
             "dev/usbharu/kotui/compose/widget/Badge.kt",
             "dev/usbharu/kotui/compose/widget/Box.kt",
@@ -230,7 +228,7 @@ tasks.register("verifyCommonMainFileBranchCoverage") {
 
         if (totalPercentage < 90.0) {
             throw GradleException(
-                "Root commonMain branch coverage is below 90%: %.2f%% (%d/%d branches)".format(
+                "Root commonMain branch coverage is below 90%%: %.2f%% (%d/%d branches)".format(
                     totalPercentage,
                     totalCovered,
                     totalBranches,
