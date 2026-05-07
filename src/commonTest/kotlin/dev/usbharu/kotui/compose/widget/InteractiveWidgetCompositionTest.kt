@@ -3,7 +3,7 @@ package dev.usbharu.kotui.compose.widget
 import dev.usbharu.kotui.compose.runtime.Key
 import dev.usbharu.kotui.compose.runtime.KeyEvent
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 class InteractiveWidgetCompositionTest {
 
     @Test
-    fun buttonIsFocusableWithKeyEvent() = runBlocking {
+    fun buttonIsFocusableWithKeyEvent() = runTest {
         val session = composeWithDefaults {
             Button("Go")
         }
@@ -34,7 +34,7 @@ class InteractiveWidgetCompositionTest {
     }
 
     @Test
-    fun buttonEnterActivatesButPlainSpaceDoesNot() = runBlocking {
+    fun buttonEnterActivatesButPlainSpaceDoesNot() = runTest {
         var clicks = 0
         val session = composeWithDefaults {
             Button("Go") { clicks++ }
@@ -54,7 +54,7 @@ class InteractiveWidgetCompositionTest {
     }
 
     @Test
-    fun checkboxIsFocusableAndShowsCheckedState() = runBlocking {
+    fun checkboxIsFocusableAndShowsCheckedState() = runTest {
         val session = composeWithDefaults {
             Checkbox(checked = true, label = "Done", onCheckedChange = {})
         }
@@ -74,7 +74,7 @@ class InteractiveWidgetCompositionTest {
     }
 
     @Test
-    fun checkboxActivationRequestsToggledValue() = runBlocking {
+    fun checkboxActivationRequestsToggledValue() = runTest {
         val changes = mutableListOf<Boolean>()
         val session = composeWithDefaults {
             Checkbox(checked = false, label = "Done", onCheckedChange = changes::add)
@@ -93,7 +93,7 @@ class InteractiveWidgetCompositionTest {
     }
 
     @Test
-    fun selectIsFocusableWithKeyEvent() = runBlocking {
+    fun selectIsFocusableWithKeyEvent() = runTest {
         val session = composeWithDefaults {
             Select(items = listOf("A", "B"), selected = "A", onSelectedChange = {})
         }
@@ -113,7 +113,7 @@ class InteractiveWidgetCompositionTest {
     }
 
     @Test
-    fun selectActivationExpandsAndSelectingItemClosesDropdown() = runBlocking {
+    fun selectActivationExpandsAndSelectingItemClosesDropdown() = runTest {
         var selected = "A"
         val session = composeWithDefaults {
             Select(

@@ -3,14 +3,14 @@ package dev.usbharu.kotui.compose.widget
 import dev.usbharu.kotui.compose.layout.AlignItems
 import dev.usbharu.kotui.compose.layout.JustifyContent
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class RowCompositionTest {
 
     @Test
-    fun rowSetsLayoutPolicyAndProperties() = runBlocking {
+    fun rowSetsLayoutPolicyAndProperties() = runTest {
         val session = composeWithDefaults {
             Row(
                 gap = 5,
@@ -37,7 +37,7 @@ class RowCompositionTest {
     }
 
     @Test
-    fun rowDefaultGapIsTwo() = runBlocking {
+    fun rowDefaultGapIsTwo() = runTest {
         val session = composeWithDefaults {
             Row {
                 Text("x")

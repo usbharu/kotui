@@ -2,7 +2,7 @@ package dev.usbharu.kotui.compose.widget
 
 import androidx.compose.runtime.mutableStateOf
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 class PanelCompositionTest {
 
     @Test
-    fun panelSetsBorderAndTitle() = runBlocking {
+    fun panelSetsBorderAndTitle() = runTest {
         val session = composeWithDefaults {
             Panel("my panel") {
                 Text("content")
@@ -31,7 +31,7 @@ class PanelCompositionTest {
     }
 
     @Test
-    fun panelRecomposesTitleAndContent() = runBlocking {
+    fun panelRecomposesTitleAndContent() = runTest {
         val title = mutableStateOf("one")
         val showSecond = mutableStateOf(false)
         val session = composeWithDefaults {
@@ -57,7 +57,7 @@ class PanelCompositionTest {
     }
 
     @Test
-    fun modalSetsFocusScopeAndHighZIndex() = runBlocking {
+    fun modalSetsFocusScopeAndHighZIndex() = runTest {
         val session = composeWithDefaults {
             Modal("dialog") {
                 Text("modal content")

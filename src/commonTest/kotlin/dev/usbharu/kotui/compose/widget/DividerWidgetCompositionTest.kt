@@ -5,7 +5,7 @@ import dev.usbharu.kotui.compose.modifier.height
 import dev.usbharu.kotui.compose.modifier.size
 import dev.usbharu.kotui.compose.modifier.width
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -13,7 +13,7 @@ import kotlin.test.assertNull
 class DividerWidgetCompositionTest {
 
     @Test
-    fun dividerSetsFillCharAndPreferredSize() = runBlocking {
+    fun dividerSetsFillCharAndPreferredSize() = runTest {
         val session = composeWithDefaults {
             Divider('=')
         }
@@ -30,7 +30,7 @@ class DividerWidgetCompositionTest {
     }
 
     @Test
-    fun dividerModifierCanOverrideDefaultHeightAndWidth() = runBlocking {
+    fun dividerModifierCanOverrideDefaultHeightAndWidth() = runTest {
         val session = composeWithDefaults {
             Divider('-', Modifier.size(20, 2))
         }
@@ -46,7 +46,7 @@ class DividerWidgetCompositionTest {
     }
 
     @Test
-    fun verticalDividerSetsFillCharAndPreferredWidth() = runBlocking {
+    fun verticalDividerSetsFillCharAndPreferredWidth() = runTest {
         val session = composeWithDefaults {
             VerticalDivider('|')
         }
@@ -63,7 +63,7 @@ class DividerWidgetCompositionTest {
     }
 
     @Test
-    fun verticalDividerModifierCanOverrideWidthAndSetHeight() = runBlocking {
+    fun verticalDividerModifierCanOverrideWidthAndSetHeight() = runTest {
         val session = composeWithDefaults {
             VerticalDivider('|', Modifier.width(3).height(4))
         }
@@ -78,7 +78,7 @@ class DividerWidgetCompositionTest {
     }
 
     @Test
-    fun spacerHasNoTextContent() = runBlocking {
+    fun spacerHasNoTextContent() = runTest {
         val session = composeWithDefaults {
             Spacer(Modifier.size(2, 1))
         }
@@ -96,7 +96,7 @@ class DividerWidgetCompositionTest {
     }
 
     @Test
-    fun spacerDefaultsHaveNoIntrinsicSize() = runBlocking {
+    fun spacerDefaultsHaveNoIntrinsicSize() = runTest {
         val session = composeWithDefaults {
             Spacer()
         }

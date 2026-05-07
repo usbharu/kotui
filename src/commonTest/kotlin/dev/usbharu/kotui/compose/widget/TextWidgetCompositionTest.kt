@@ -6,7 +6,7 @@ import dev.usbharu.kotui.compose.modifier.width
 import dev.usbharu.kotui.compose.node.LayoutPolicy
 import dev.usbharu.kotui.core.Style
 import dev.usbharu.kotui.utils.Ansi
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -14,7 +14,7 @@ import kotlin.test.assertNotNull
 class TextWidgetCompositionTest {
 
     @Test
-    fun textSetsTagContentAndPreferredSize() = runBlocking {
+    fun textSetsTagContentAndPreferredSize() = runTest {
         val session = composeWithDefaults {
             Text("hello")
         }
@@ -31,7 +31,7 @@ class TextWidgetCompositionTest {
     }
 
     @Test
-    fun textRecomposesContentAndAppliesModifierWidth() = runBlocking {
+    fun textRecomposesContentAndAppliesModifierWidth() = runTest {
         val value = mutableStateOf("first")
         val session = composeWithDefaults {
             Text(value.value, Modifier.width(12))
@@ -52,7 +52,7 @@ class TextWidgetCompositionTest {
     }
 
     @Test
-    fun badgeSetsStyledTextWithPadding() = runBlocking {
+    fun badgeSetsStyledTextWithPadding() = runTest {
         val session = composeWithDefaults {
             Badge("ok")
         }
@@ -74,7 +74,7 @@ class TextWidgetCompositionTest {
     }
 
     @Test
-    fun badgePreferredWidthUsesDisplayWidthForWideCharacters() = runBlocking {
+    fun badgePreferredWidthUsesDisplayWidthForWideCharacters() = runTest {
         val session = composeWithDefaults {
             Badge("界")
         }

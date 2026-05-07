@@ -14,7 +14,6 @@ import dev.usbharu.kotui.compose.node.TuiNode
 import dev.usbharu.kotui.compose.runtime.LocalFocusManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 
 class ComposeTestSession(

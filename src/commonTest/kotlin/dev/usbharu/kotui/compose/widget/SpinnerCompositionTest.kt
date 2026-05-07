@@ -1,7 +1,7 @@
 package dev.usbharu.kotui.compose.widget
 
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -9,7 +9,7 @@ import kotlin.test.assertNotNull
 class SpinnerCompositionTest {
 
     @Test
-    fun spinnerWithManualFrameSetsDisplayText() = runBlocking {
+    fun spinnerWithManualFrameSetsDisplayText() = runTest {
         val session = composeWithDefaults {
             Spinner(frame = 0, chars = listOf('|', '/', '-', '\\'))
         }
@@ -28,7 +28,7 @@ class SpinnerCompositionTest {
     }
 
     @Test
-    fun spinnerWithNegativeFrameWraps() = runBlocking {
+    fun spinnerWithNegativeFrameWraps() = runTest {
         val session = composeWithDefaults {
             Spinner(frame = -1, chars = listOf('|', '/'))
         }

@@ -3,7 +3,7 @@ package dev.usbharu.kotui.compose.widget
 import dev.usbharu.kotui.compose.runtime.Key
 import dev.usbharu.kotui.compose.runtime.KeyEvent
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 class ListWidgetCompositionTest {
 
     @Test
-    fun radioGroupEmitsTextChildrenForEachOption() = runBlocking {
+    fun radioGroupEmitsTextChildrenForEachOption() = runTest {
         val session = composeWithDefaults {
             RadioGroup(options = listOf("A", "B"), selected = "A", onSelectedChange = {})
         }
@@ -34,7 +34,7 @@ class ListWidgetCompositionTest {
     }
 
     @Test
-    fun radioGroupArrowNavigationRequestsNewSelection() = runBlocking {
+    fun radioGroupArrowNavigationRequestsNewSelection() = runTest {
         val changes = mutableListOf<String>()
         val session = composeWithDefaults {
             RadioGroup(options = listOf("A", "B", "C"), selected = "A", onSelectedChange = changes::add)
@@ -51,7 +51,7 @@ class ListWidgetCompositionTest {
     }
 
     @Test
-    fun radioGroupEmptyStateDoesNotConsumeNavigation() = runBlocking {
+    fun radioGroupEmptyStateDoesNotConsumeNavigation() = runTest {
         val session = composeWithDefaults {
             RadioGroup(options = emptyList<String>(), selected = "missing", onSelectedChange = {})
         }
@@ -68,7 +68,7 @@ class ListWidgetCompositionTest {
     }
 
     @Test
-    fun selectableListEmitsTextChildrenForItems() = runBlocking {
+    fun selectableListEmitsTextChildrenForItems() = runTest {
         val session = composeWithDefaults {
             SelectableList(items = listOf("A", "B"), selectedIndex = 0, onSelectedIndexChange = {})
         }
@@ -88,7 +88,7 @@ class ListWidgetCompositionTest {
     }
 
     @Test
-    fun selectableListHandlesNavigationActivationAndVisibleRows() = runBlocking {
+    fun selectableListHandlesNavigationActivationAndVisibleRows() = runTest {
         var moved: Int? = null
         var activated: Pair<Int, String>? = null
         val session = composeWithDefaults {
@@ -117,7 +117,7 @@ class ListWidgetCompositionTest {
     }
 
     @Test
-    fun selectableListEmptyStateDoesNotConsumeKeys() = runBlocking {
+    fun selectableListEmptyStateDoesNotConsumeKeys() = runTest {
         val session = composeWithDefaults {
             SelectableList(items = emptyList<String>(), selectedIndex = 0, onSelectedIndexChange = {})
         }
@@ -135,7 +135,7 @@ class ListWidgetCompositionTest {
     }
 
     @Test
-    fun multiSelectListEmitsTextChildrenForItems() = runBlocking {
+    fun multiSelectListEmitsTextChildrenForItems() = runTest {
         val session = composeWithDefaults {
             MultiSelectList(
                 items = listOf("A", "B"),
@@ -161,7 +161,7 @@ class ListWidgetCompositionTest {
     }
 
     @Test
-    fun multiSelectListHandlesToggleBulkSelectionAndActivation() = runBlocking {
+    fun multiSelectListHandlesToggleBulkSelectionAndActivation() = runTest {
         var cursor: Int? = null
         val checkedChanges = mutableListOf<Set<Int>>()
         var activated: Pair<Int, String>? = null

@@ -1,7 +1,7 @@
 package dev.usbharu.kotui.compose.widget
 
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 class TextAreaCompositionTest {
 
     @Test
-    fun textAreaEmitsColumnWithTextChildrenPerLine() = runBlocking {
+    fun textAreaEmitsColumnWithTextChildrenPerLine() = runTest {
         val session = composeWithDefaults {
             TextArea(value = "a\nb", onValueChange = {})
         }

@@ -1,7 +1,7 @@
 package dev.usbharu.kotui.compose.widget
 
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -9,7 +9,7 @@ import kotlin.test.assertNotNull
 class ImageCompositionTest {
 
     @Test
-    fun imageSetsDimensionsAndTerminalImage() = runBlocking {
+    fun imageSetsDimensionsAndTerminalImage() = runTest {
         val img = TerminalImage(
             rgba = ByteArray(4),
             pixelWidth = 1,

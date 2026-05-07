@@ -2,7 +2,7 @@ package dev.usbharu.kotui.compose.widget
 
 import androidx.compose.runtime.mutableStateOf
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 class ProgressBarCompositionTest {
 
     @Test
-    fun progressBarShowsFilledAndEmptyChars() = runBlocking {
+    fun progressBarShowsFilledAndEmptyChars() = runTest {
         val session = composeWithDefaults {
             ProgressBar(0.25f, width = 4, showPercent = true, filledChar = '#', emptyChar = '.')
         }
@@ -30,7 +30,7 @@ class ProgressBarCompositionTest {
     }
 
     @Test
-    fun progressBarHandlesZeroWidthWithPercent() = runBlocking {
+    fun progressBarHandlesZeroWidthWithPercent() = runTest {
         val session = composeWithDefaults {
             ProgressBar(0.75f, width = 0, showPercent = true, filledChar = '#', emptyChar = '.')
         }
@@ -45,7 +45,7 @@ class ProgressBarCompositionTest {
     }
 
     @Test
-    fun progressBarRecomposesProgressText() = runBlocking {
+    fun progressBarRecomposesProgressText() = runTest {
         val progress = mutableStateOf(0.0f)
         val session = composeWithDefaults {
             ProgressBar(progress.value, width = 4, showPercent = false, filledChar = '#', emptyChar = '.')
@@ -65,7 +65,7 @@ class ProgressBarCompositionTest {
     }
 
     @Test
-    fun progressBarAtFullShowsAllFilled() = runBlocking {
+    fun progressBarAtFullShowsAllFilled() = runTest {
         val session = composeWithDefaults {
             ProgressBar(1.0f, width = 3, showPercent = false, filledChar = 'X', emptyChar = 'O')
         }
@@ -79,7 +79,7 @@ class ProgressBarCompositionTest {
     }
 
     @Test
-    fun progressBarAtZeroShowsAllEmpty() = runBlocking {
+    fun progressBarAtZeroShowsAllEmpty() = runTest {
         val session = composeWithDefaults {
             ProgressBar(0.0f, width = 3, showPercent = false, filledChar = 'X', emptyChar = 'O')
         }

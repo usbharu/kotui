@@ -1,14 +1,14 @@
 package dev.usbharu.kotui.compose.widget
 
 import dev.usbharu.kotui.compose.node.LayoutPolicy
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class CenterCompositionTest {
 
     @Test
-    fun centerSetsLayoutPolicyAndPreservesChild() = runBlocking {
+    fun centerSetsLayoutPolicyAndPreservesChild() = runTest {
         val session = composeWithDefaults {
             Center {
                 Text("centered")
