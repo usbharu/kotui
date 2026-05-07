@@ -141,4 +141,27 @@ class TextEditOpsTest {
         assertEquals("!llo", selectionValue)
         assertEquals(1, selectionPos)
     }
+
+    @Test
+    fun wordBoundariesStepOverSurrogatePairsAsNonWordCodePoints() {
+        val emoji = "\uD83D\uDE00"
+
+        assertEquals(6, TextEditOps.nextWordBoundary("${emoji}word", 0))
+        assertEquals(2, TextEditOps.prevWordBoundary("${emoji}word", 6))
+        assertEquals(0, TextEditOps.prevWordBoundary("${emoji}...", 5))
+    }
+
+    @Test
+    fun wordBoundariesTreatUppercaseDigitsAndUnderscoresAsOneWordRun() {
+        assertEquals(8, TextEditOps.nextWordBoundary("__ABC123!", 0))
+        assertEquals(0, TextEditOps.prevWordBoundary("__ABC123!", 8))
+    }
+
+    @Test
+    fun deleteRangeClampsPastEndAndKeepsCursorAtStart() {
+        val (value, cursor) = TextEditOps.deleteRange("hello", 2, 99)
+
+        assertEquals("he", value)
+        assertEquals(2, cursor)
+    }
 }

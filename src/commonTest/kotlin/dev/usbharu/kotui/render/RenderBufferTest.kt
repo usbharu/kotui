@@ -201,4 +201,56 @@ class RenderBufferTest {
 
         assertEquals(musical, buf.get(0, 0).content)
     }
+
+    @Test
+    fun higherZIndexAsciiClearsLeftHalfOfWideCellWhenWritingContinuationColumn() {
+        val buf = RenderBuffer(4, 1)
+        buf.writeString(0, 0, "あ", Style(), 0)
+
+        buf.set(1, 0, 'X', Style(), 1)
+
+        assertEquals(" ", buf.get(0, 0).content)
+        assertEquals("X", buf.get(1, 0).content)
+        assertEquals(1, buf.get(1, 0).width)
+    }
+
+    @Test
+    fun lowerZIndexAsciiCannotClearLeftHalfOfHigherWideCell() {
+        val buf = RenderBuffer(4, 1)
+        buf.writeString(0, 0, "あ", Style(), 5)
+
+        buf.set(1, 0, 'x', Style(), 4)
+
+        assertEquals("あ", buf.get(0, 0).content)
+        assertTrue(buf.get(1, 0).isContinuation)
+    }
+
+    @Test
+    fun wideWriteAtNegativeXIsRejectedBeforeTouchingCells() {
+        val buf = RenderBuffer(3, 1)
+
+        buf.setGrapheme(-1, 0, "あ", 2, Style(), 0)
+
+        assertEquals(" ", buf.get(0, 0).content)
+        assertEquals(" ", buf.get(1, 0).content)
+    }
+
+    @Test
+    fun imagePlacementWithHigherZIndexClearsCellsAndRecordsFullPlacement() {
+        val buf = RenderBuffer(3, 2)
+        buf.set(1, 0, 'X', Style(), 0)
+        val image = dev.usbharu.kotui.compose.widget.TerminalImage(
+            rgba = ByteArray(16),
+            pixelWidth = 2,
+            pixelHeight = 2,
+            cellPixelWidth = 1,
+            cellPixelHeight = 1,
+        )
+
+        buf.placeImage(1, 0, image, zIndex = 5)
+
+        assertEquals(" ", buf.get(1, 0).content)
+        assertEquals(5, buf.get(1, 0).zIndex)
+        assertEquals(ImagePlacement(1, 0, 2, 2, image, 5), buf.imagePlacements().single())
+    }
 }

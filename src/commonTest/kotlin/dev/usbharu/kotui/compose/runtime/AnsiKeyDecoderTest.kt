@@ -239,4 +239,57 @@ class AnsiKeyDecoderTest {
         assertEquals(1, events.size)
         assertEquals("a\u001B[20Xb", (events[0] as PasteEvent).text)
     }
+
+    @Test
+    fun altControlCharsBackspaceAndRegularUppercaseAreDecoded() {
+        val events = decode("\u001B\n\u001B\t\u001BZ")
+
+        val altEnter = events[0] as KeyEvent
+        assertEquals(Key.CHAR, altEnter.key)
+        assertEquals('j', altEnter.char)
+        assertTrue(altEnter.ctrl)
+        assertTrue(altEnter.alt)
+
+        val altTab = events[1] as KeyEvent
+        assertEquals(Key.CHAR, altTab.key)
+        assertEquals('i', altTab.char)
+        assertTrue(altTab.ctrl)
+        assertTrue(altTab.alt)
+
+        val altUpper = events[2] as KeyEvent
+        assertEquals(Key.CHAR, altUpper.key)
+        assertEquals('Z', altUpper.char)
+        assertTrue(altUpper.alt)
+    }
+
+    @Test
+    fun csiDefaultsAndAlternateHomeEndFormsAreDecoded() {
+        val events = decode("\u001B[A\u001B[7~\u001B[8~")
+
+        assertEquals(Key.ARROW_UP, (events[0] as KeyEvent).key)
+        assertEquals(Key.HOME, (events[1] as KeyEvent).key)
+        assertEquals(Key.END, (events[2] as KeyEvent).key)
+    }
+
+    @Test
+    fun unknownCsiFinalIsDropped() {
+        val unknownFinal = decode("\u001B[X")
+        assertTrue(unknownFinal.isEmpty())
+    }
+
+    @Test
+    fun pasteEscPrefixOnlyIsFlushedAsLiteralContent() {
+        val events = decode("\u001B[200~a\u001Bx\u001B[201~")
+
+        assertEquals(1, events.size)
+        assertEquals("a\u001Bx", (events.single() as PasteEvent).text)
+    }
+
+    @Test
+    fun flushIdleProducesNoEvents() {
+        val decoder = AnsiKeyDecoder()
+
+        assertTrue(decoder.flush().isEmpty())
+        assertEquals(false, decoder.hasPending())
+    }
 }
