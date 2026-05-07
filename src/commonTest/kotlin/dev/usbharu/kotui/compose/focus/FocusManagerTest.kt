@@ -105,4 +105,41 @@ class FocusManagerTest {
         manager.focusPrevious(root)
         assertEquals(-1, manager.focusedId)
     }
+
+    @Test
+    fun focusPreviousUsesNearestScopeAndWrapsInsideScope() {
+        val manager = FocusManager()
+        val outside = focusable(manager, "outside")
+        val first = focusable(manager, "first")
+        val second = focusable(manager, "second")
+        val scope = TuiNode("scope").apply {
+            focusScope = true
+            insertAt(0, first)
+            insertAt(1, second)
+        }
+        val root = TuiNode("root").apply {
+            insertAt(0, outside)
+            insertAt(1, scope)
+        }
+
+        manager.requestFocus(first.focusId)
+        manager.focusPrevious(root)
+
+        assertEquals(second.focusId, manager.focusedId)
+        manager.focusPrevious(root)
+        assertEquals(first.focusId, manager.focusedId)
+    }
+
+    @Test
+    fun autoFocusClearsWhenTreeHasNoFocusableReplacement() {
+        val manager = FocusManager()
+        val child = focusable(manager)
+        val root = TuiNode("root").apply { insertAt(0, child) }
+
+        manager.requestFocus(child.focusId)
+        root.clear()
+        manager.autoFocus(root)
+
+        assertEquals(-1, manager.focusedId)
+    }
 }

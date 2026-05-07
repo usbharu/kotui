@@ -148,4 +148,57 @@ class RenderBufferTest {
 
         assertEquals(" ", buf.get(0, 0).content)
     }
+
+    @Test
+    fun setGraphemeRejectsInvalidCoordinatesAndWidths() {
+        val buf = RenderBuffer(2, 1)
+        buf.setGrapheme(0, -1, "X", 1, Style(), 0)
+        buf.setGrapheme(0, 0, "X", 0, Style(), 0)
+        buf.setGrapheme(-1, 0, "X", 1, Style(), 0)
+        buf.setGrapheme(2, 0, "X", 1, Style(), 0)
+
+        assertEquals(" ", buf.get(0, 0).content)
+        assertEquals(" ", buf.get(1, 0).content)
+    }
+
+    @Test
+    fun wideWriteClearsFarContinuationWhenOverlappingWideCellToTheRight() {
+        val buf = RenderBuffer(4, 1)
+        buf.writeString(1, 0, "あ", Style(), 0)
+
+        buf.writeString(0, 0, "い", Style(), 1)
+
+        assertEquals("い", buf.get(0, 0).content)
+        assertTrue(buf.get(1, 0).isContinuation)
+        assertEquals(" ", buf.get(2, 0).content)
+    }
+
+    @Test
+    fun lowerZIndexImagePlacementCannotClearHigherCellsAndClipsBounds() {
+        val buf = RenderBuffer(3, 2)
+        buf.set(1, 0, 'X', Style(), 10)
+        val image = dev.usbharu.kotui.compose.widget.TerminalImage(
+            rgba = ByteArray(16),
+            pixelWidth = 2,
+            pixelHeight = 2,
+            cellPixelWidth = 1,
+            cellPixelHeight = 1,
+        )
+
+        buf.placeImage(-1, -1, image, zIndex = 0)
+
+        assertEquals("X", buf.get(1, 0).content)
+        assertEquals(" ", buf.get(0, 0).content)
+        assertEquals(ImagePlacement(-1, -1, 2, 2, image, 0), buf.imagePlacements().single())
+    }
+
+    @Test
+    fun supplementaryCodePointIsWrittenAsSurrogatePair() {
+        val buf = RenderBuffer(3, 1)
+        val musical = "\uD834\uDD1E"
+
+        buf.writeString(0, 0, musical, Style(), 0)
+
+        assertEquals(musical, buf.get(0, 0).content)
+    }
 }

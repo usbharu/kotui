@@ -114,4 +114,31 @@ class TextEditOpsTest {
         assertEquals("hello", reversed)
         assertEquals(4, reversedCursor)
     }
+
+    @Test
+    fun clampBoundaryClampsNegativeAndPastEnd() {
+        assertEquals(0, TextEditOps.clampToBoundary("hello", -10))
+        assertEquals(5, TextEditOps.clampToBoundary("hello", 99))
+    }
+
+    @Test
+    fun wordBoundariesHandleOnlyPunctuationAndUnderscoreDigits() {
+        assertEquals(6, TextEditOps.nextWordBoundary("...abc", 0))
+        assertEquals(6, TextEditOps.nextWordBoundary("abc...", 3))
+        assertEquals(3, TextEditOps.nextWordBoundary("...", 0))
+        assertEquals(0, TextEditOps.prevWordBoundary("...", 3))
+        assertEquals(0, TextEditOps.prevWordBoundary("abc_123!", 8))
+        assertEquals(0, TextEditOps.prevWordBoundary("abc...def", 6))
+    }
+
+    @Test
+    fun replaceSelectionClampsNegativeStartAndCursorClampsNegative() {
+        val (cursorValue, cursorPos) = TextEditOps.replace("hello", -5, null, "!")
+        assertEquals("!hello", cursorValue)
+        assertEquals(1, cursorPos)
+
+        val (selectionValue, selectionPos) = TextEditOps.replace("hello", 0, -10..2, "!")
+        assertEquals("!llo", selectionValue)
+        assertEquals(1, selectionPos)
+    }
 }

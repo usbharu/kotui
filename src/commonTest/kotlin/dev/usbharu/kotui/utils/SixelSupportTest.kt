@@ -191,4 +191,47 @@ class SixelSupportTest {
         assertEquals(10, caps.cellPixelWidth)
         assertEquals(20, caps.cellPixelHeight)
     }
+
+    @Test
+    fun terminalResponseParserHandlesMissingDa1AndPartialSizeReplies() {
+        val noDa1 = parseTerminalResponses("plain text\u001B[6;18;9t")
+        assertFalse(noDa1.sixelSupported)
+        assertEquals(9, noDa1.cellPixelWidth)
+        assertEquals(18, noDa1.cellPixelHeight)
+
+        val noDaTerminator = parseTerminalResponses("\u001B[?1;4")
+        assertFalse(noDaTerminator.sixelSupported)
+
+        val partialSize = parseTerminalResponses("\u001B[6;18t\u001B[6;-1;-2t")
+        assertEquals(10, partialSize.cellPixelWidth)
+        assertEquals(20, partialSize.cellPixelHeight)
+    }
+
+    @Test
+    fun remainingEnvironmentHintsAreDetected() {
+        assertTrue(detectCapsFromEnv(env("TERM_PROGRAM" to "mlterm")).sixel)
+        assertTrue(detectCapsFromEnv(env("TERM" to "wezterm-256color")).kitty)
+        assertTrue(detectCapsFromEnv(env("TERM" to "wezterm-256color")).sixel)
+
+        val falseForce = detectCapsFromEnv(env(
+            "TERM" to "screen-256color",
+            "KOTUI_FORCE_GRAPHICS" to "false",
+        ))
+        assertTrue(falseForce.insideMultiplexer)
+    }
+
+    @Test
+    fun mergeUsesEnvSixelWhenProbeIsMissingOrNegative() {
+        val envOnly = mergeCaps(probe = null, env = EnvCaps(sixel = true, kitty = false))
+        assertTrue(envOnly.sixelSupported)
+        assertFalse(envOnly.kittySupported)
+
+        val envOverridesNegativeProbe = mergeCaps(
+            probe = TerminalCaps(sixelSupported = false, cellPixelWidth = 7, cellPixelHeight = 8),
+            env = EnvCaps(sixel = true, kitty = false),
+        )
+        assertTrue(envOverridesNegativeProbe.sixelSupported)
+        assertEquals(7, envOverridesNegativeProbe.cellPixelWidth)
+        assertEquals(8, envOverridesNegativeProbe.cellPixelHeight)
+    }
 }

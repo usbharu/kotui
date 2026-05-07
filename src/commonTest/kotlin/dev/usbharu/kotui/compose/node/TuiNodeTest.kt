@@ -101,4 +101,17 @@ class TuiNodeTest {
         assertFalse(node.focusable)
         assertEquals("Modifier", Modifier.toString())
     }
+
+    @Test
+    fun moveBackwardKeepsMovedChildrenInOrder() {
+        val root = TuiNode("root")
+        listOf("a", "b", "c", "d").forEachIndexed { index, tag ->
+            root.insertAt(index, TuiNode(tag))
+        }
+
+        root.move(from = 2, to = 0, count = 2)
+
+        assertEquals(listOf("c", "d", "a", "b"), root.children.map { it.tag })
+        assertTrue(root.children.all { it.parent === root })
+    }
 }
