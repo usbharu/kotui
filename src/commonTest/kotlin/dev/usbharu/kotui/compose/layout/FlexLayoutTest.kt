@@ -298,4 +298,166 @@ class FlexLayoutTest {
         assertEquals(0, child.bounds.width)
         assertEquals(2, child.bounds.height)
     }
+
+    @Test
+    fun emptyColumnKeepsRootBounds() {
+        val root = column(children = emptyList())
+
+        LayoutEngine.layout(root, screenWidth = 12, screenHeight = 7)
+
+        assertEquals(12, root.bounds.width)
+        assertEquals(7, root.bounds.height)
+    }
+
+    @Test
+    fun rowWithNoGrowKeepsBasisWidthsAndSkipsRemainderDistribution() {
+        val a = leaf(width = 2, height = 1)
+        val b = leaf(width = 3, height = 1)
+        val root = row(children = listOf(a, b))
+
+        LayoutEngine.layout(root, screenWidth = 12, screenHeight = 3)
+
+        assertEquals(2, a.bounds.width)
+        assertEquals(3, b.bounds.width)
+        assertEquals(2, b.bounds.x)
+    }
+
+    @Test
+    fun rowGrowWithoutRoundingRemainderKeepsExactShares() {
+        val a = leaf(height = 1, grow = 1f)
+        val b = leaf(height = 1, grow = 1f)
+        val root = row(children = listOf(a, b))
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 3)
+
+        assertEquals(5, a.bounds.width)
+        assertEquals(5, b.bounds.width)
+    }
+
+    @Test
+    fun rowPreferredWidthPreventsShrinkToContent() {
+        val child = leaf(width = 2, height = 1)
+        val root = row(children = listOf(child)).apply { preferredWidth = 20 }
+
+        LayoutEngine.layout(root, screenWidth = 20, screenHeight = 3)
+
+        assertEquals(20, root.bounds.width)
+    }
+
+    @Test
+    fun columnPreferredHeightPreventsShrinkToContent() {
+        val child = leaf(width = 2, height = 1)
+        val root = column(children = listOf(child)).apply { preferredHeight = 9 }
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 9)
+
+        assertEquals(9, root.bounds.height)
+    }
+
+    @Test
+    fun columnCenterAndEndAlignmentUseIntrinsicChildWidth() {
+        val centered = leaf(height = 1).apply { text = "abcd" }
+        val ended = leaf(height = 1).apply { text = "xy" }
+        val centerRoot = column(align = AlignItems.Center, children = listOf(centered))
+        val endRoot = column(align = AlignItems.End, children = listOf(ended))
+
+        LayoutEngine.layout(centerRoot, screenWidth = 10, screenHeight = 2)
+        LayoutEngine.layout(endRoot, screenWidth = 10, screenHeight = 2)
+
+        assertEquals(3, centered.bounds.x)
+        assertEquals(4, centered.bounds.width)
+        assertEquals(8, ended.bounds.x)
+        assertEquals(2, ended.bounds.width)
+    }
+
+    @Test
+    fun borderedRowInsetsChildrenAndShrinksWidthToContent() {
+        val child = leaf(width = 2, height = 1)
+        val root = TuiNode("PanelRow").apply {
+            layoutPolicy = LayoutPolicy.ROW
+            drawBorder = true
+            preferredHeight = 3
+            insertAt(0, child)
+        }
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 3)
+
+        assertEquals(1, child.bounds.x)
+        assertEquals(1, child.bounds.y)
+        assertEquals(4, root.bounds.width)
+    }
+
+    @Test
+    fun centerUsesIntrinsicWidthForChildWithoutPreferredWidth() {
+        val child = TuiNode("Text").apply {
+            layoutPolicy = LayoutPolicy.LEAF
+            text = "abc"
+        }
+        val root = TuiNode("Center").apply {
+            layoutPolicy = LayoutPolicy.CENTER
+            insertAt(0, child)
+        }
+
+        LayoutEngine.layout(root, screenWidth = 9, screenHeight = 5)
+
+        assertEquals(3, child.bounds.x)
+        assertEquals(2, child.bounds.y)
+        assertEquals(3, child.bounds.width)
+        assertEquals(1, child.bounds.height)
+    }
+
+    @Test
+    fun boxWithoutPreferredSizeFillsConstraintsForZeroBoundsChild() {
+        val child = leaf()
+        val root = TuiNode("Box").apply {
+            layoutPolicy = LayoutPolicy.BOX
+            insertAt(0, child)
+        }
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 8)
+
+        assertEquals(10, child.bounds.width)
+        assertEquals(8, child.bounds.height)
+    }
+
+    @Test
+    fun rowUsesNestedRowIntrinsicWidthIncludingGap() {
+        val nestedA = leaf(width = 2, height = 1)
+        val nestedB = leaf(width = 3, height = 1)
+        val nested = TuiNode("NestedRow").apply {
+            layoutPolicy = LayoutPolicy.ROW
+            layoutGap = 1
+            insertAt(0, nestedA)
+            insertAt(1, nestedB)
+        }
+        val after = leaf(width = 1, height = 1)
+        val root = row(children = listOf(nested, after))
+
+        LayoutEngine.layout(root, screenWidth = 20, screenHeight = 3)
+
+        assertEquals(6, nested.bounds.width)
+        assertEquals(6, after.bounds.x)
+    }
+
+    @Test
+    fun rowUsesBoxAndCenterIntrinsicHeightsForCrossSize() {
+        val boxChild = leaf(width = 1, height = 4)
+        val box = TuiNode("Box").apply {
+            layoutPolicy = LayoutPolicy.BOX
+            preferredWidth = 2
+            insertAt(0, boxChild)
+        }
+        val centerChild = leaf(width = 1, height = 3)
+        val center = TuiNode("Center").apply {
+            layoutPolicy = LayoutPolicy.CENTER
+            preferredWidth = 2
+            insertAt(0, centerChild)
+        }
+        val root = row(align = AlignItems.Start, children = listOf(box, center))
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 8)
+
+        assertEquals(4, box.bounds.height)
+        assertEquals(3, center.bounds.height)
+    }
 }

@@ -23,4 +23,15 @@ class ClipboardTest {
         assertEquals("copied", clipboard.read())
         assertEquals("copied", memory.read())
     }
+
+    @Test
+    fun systemClipboardCanEmitOsc52WithoutSystemHelper() {
+        val memory = InMemoryClipboard()
+        val clipboard = SystemClipboard(memory, emitOsc52 = true, useSystemHelper = false)
+
+        clipboard.write("remote")
+
+        assertEquals("remote", clipboard.read())
+        assertEquals("remote", memory.read())
+    }
 }

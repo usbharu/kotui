@@ -154,42 +154,8 @@ fun runTui(
             renderer.render(rootNode, focusManager)
         }
 
-        fun dispatchPaste(text: String): Boolean {
-            val focused = focusManager.findFocusedNode(rootNode) ?: return false
-            if (focused.onPaste?.invoke(text) == true) return true
-            var current: TuiNode? = focused.parent
-            while (current != null) {
-                if (current.onPaste?.invoke(text) == true) return true
-                current = current.parent
-            }
-            return false
-        }
-
-        fun dispatchKey(event: KeyEvent): Boolean {
-            if (event.key == Key.TAB) {
-                focusManager.focusNext(rootNode)
-                return true
-            }
-
-            val focusedNode = focusManager.findFocusedNode(rootNode)
-            if (focusedNode?.onKeyEvent?.invoke(event) == true) return true
-            if (focusedNode != null) {
-                var current = focusedNode.parent
-                while (current != null) {
-                    if (current.onKeyEvent?.invoke(event) == true) return true
-                    current = current.parent
-                }
-            }
-
+        val eventDispatcher = TuiEventDispatcher(rootNode, focusManager) { event ->
             keyEventState.value = event
-            return false
-        }
-
-        fun dispatchEvent(event: InputEvent) {
-            when (event) {
-                is KeyEvent -> dispatchKey(event)
-                is PasteEvent -> dispatchPaste(event.text)
-            }
         }
 
         // Pump terminal input on a background dispatcher so the main render
@@ -239,7 +205,7 @@ fun runTui(
                     }
                 }
             }
-            event?.let { dispatchEvent(it) }
+            event?.let { eventDispatcher.dispatchEvent(it) }
             if (!running) break
 
             // Pick up any state writes from the wait window, then drive a frame.

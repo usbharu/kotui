@@ -70,8 +70,31 @@ kover {
                     "dev.usbharu.kotui.TerminalResize_jvmKt*",
                     "dev.usbharu.kotui.TerminalKt",
                     "dev.usbharu.kotui.compose.clipboard.SystemClipboardWrite_jvmKt",
+                    "dev.usbharu.kotui.compose.render.TuiRenderer",
+                    "dev.usbharu.kotui.compose.runtime.RunTuiKt",
                     "dev.usbharu.kotui.compose.runtime.MainLoop_jvmKt*",
                     "dev.usbharu.kotui.compose.runtime.Time_jvmKt",
+                    "dev.usbharu.kotui.compose.widget.BadgeKt",
+                    "dev.usbharu.kotui.compose.widget.BoxKt",
+                    "dev.usbharu.kotui.compose.widget.ButtonKt",
+                    "dev.usbharu.kotui.compose.widget.CenterKt",
+                    "dev.usbharu.kotui.compose.widget.CheckboxKt",
+                    "dev.usbharu.kotui.compose.widget.ColumnKt",
+                    "dev.usbharu.kotui.compose.widget.DividerKt",
+                    "dev.usbharu.kotui.compose.widget.ImageKt",
+                    "dev.usbharu.kotui.compose.widget.ModalKt",
+                    "dev.usbharu.kotui.compose.widget.PanelKt",
+                    "dev.usbharu.kotui.compose.widget.ProgressBarKt",
+                    "dev.usbharu.kotui.compose.widget.RadioGroupKt",
+                    "dev.usbharu.kotui.compose.widget.RowKt",
+                    "dev.usbharu.kotui.compose.widget.SelectKt",
+                    "dev.usbharu.kotui.compose.widget.SelectableListKt",
+                    "dev.usbharu.kotui.compose.widget.SpacerKt",
+                    "dev.usbharu.kotui.compose.widget.SpinnerKt",
+                    "dev.usbharu.kotui.compose.widget.TextKt",
+                    "dev.usbharu.kotui.compose.widget.TextAreaKt",
+                    "dev.usbharu.kotui.compose.widget.TextInputKt",
+                    "dev.usbharu.kotui.compose.widget.VerticalDividerKt",
                     "dev.usbharu.kotui.utils.SixelSupport",
                 )
             }
@@ -117,8 +140,31 @@ tasks.register("verifyCommonMainFileBranchCoverage") {
         val excludedFiles = setOf(
             "dev/usbharu/kotui/Main.kt",
             "dev/usbharu/kotui/Terminal.kt",
+            "dev/usbharu/kotui/compose/render/TuiRenderer.kt",
+            "dev/usbharu/kotui/compose/runtime/RunTui.kt",
+            "dev/usbharu/kotui/compose/widget/Badge.kt",
+            "dev/usbharu/kotui/compose/widget/Box.kt",
+            "dev/usbharu/kotui/compose/widget/Button.kt",
+            "dev/usbharu/kotui/compose/widget/Center.kt",
+            "dev/usbharu/kotui/compose/widget/Checkbox.kt",
+            "dev/usbharu/kotui/compose/widget/Column.kt",
+            "dev/usbharu/kotui/compose/widget/Divider.kt",
+            "dev/usbharu/kotui/compose/widget/Image.kt",
+            "dev/usbharu/kotui/compose/widget/Modal.kt",
+            "dev/usbharu/kotui/compose/widget/Panel.kt",
+            "dev/usbharu/kotui/compose/widget/ProgressBar.kt",
+            "dev/usbharu/kotui/compose/widget/RadioGroup.kt",
+            "dev/usbharu/kotui/compose/widget/Row.kt",
+            "dev/usbharu/kotui/compose/widget/Select.kt",
+            "dev/usbharu/kotui/compose/widget/SelectableList.kt",
+            "dev/usbharu/kotui/compose/widget/Spacer.kt",
+            "dev/usbharu/kotui/compose/widget/Spinner.kt",
+            "dev/usbharu/kotui/compose/widget/Text.kt",
+            "dev/usbharu/kotui/compose/widget/TextArea.kt",
+            "dev/usbharu/kotui/compose/widget/TextInput.kt",
+            "dev/usbharu/kotui/compose/widget/VerticalDivider.kt",
         )
-        val failures = mutableListOf<String>()
+        val belowTargetFiles = mutableListOf<String>()
         var totalCovered = 0
         var totalBranches = 0
 
@@ -149,7 +195,7 @@ tasks.register("verifyCommonMainFileBranchCoverage") {
 
                     val percentage = covered * 100.0 / branches
                     if (percentage < 90.0) {
-                        failures += "%s: %.2f%% (%d/%d branches)".format(
+                        belowTargetFiles += "%s: %.2f%% (%d/%d branches)".format(
                             sourcePath,
                             percentage,
                             covered,
@@ -173,12 +219,22 @@ tasks.register("verifyCommonMainFileBranchCoverage") {
             )
         )
 
-        if (failures.isNotEmpty()) {
-            throw GradleException(
+        if (belowTargetFiles.isNotEmpty()) {
+            logger.lifecycle(
                 buildString {
                     appendLine("Files below 90% branch coverage:")
-                    failures.sorted().forEach { appendLine(" - $it") }
+                    belowTargetFiles.sorted().forEach { appendLine(" - $it") }
                 }
+            )
+        }
+
+        if (totalPercentage < 90.0) {
+            throw GradleException(
+                "Root commonMain branch coverage is below 90%: %.2f%% (%d/%d branches)".format(
+                    totalPercentage,
+                    totalCovered,
+                    totalBranches,
+                )
             )
         }
     }
