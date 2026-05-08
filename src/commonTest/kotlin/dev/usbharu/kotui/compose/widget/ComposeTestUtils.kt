@@ -21,6 +21,7 @@ class ComposeTestSession(
     val composition: Composition,
     val recomposer: Recomposer,
     val frameClock: BroadcastFrameClock,
+    val focusManager: FocusManager,
     private val job: kotlinx.coroutines.Job,
 ) {
     fun dispose() {
@@ -34,19 +35,20 @@ fun CoroutineScope.composeWithDefaults(content: @Composable () -> Unit): Compose
     val root = TuiNode("Root")
     val frameClock = BroadcastFrameClock()
     val recomposer = Recomposer(coroutineContext + frameClock)
+    val focusManager = FocusManager()
     val job = launch(frameClock) { recomposer.runRecomposeAndApplyChanges() }
     val composition = Composition(TuiApplier(root), recomposer)
 
     composition.setContent {
         CompositionLocalProvider(
-            LocalFocusManager provides FocusManager(),
+            LocalFocusManager provides focusManager,
             LocalClipboard provides InMemoryClipboard(),
         ) {
             content()
         }
     }
 
-    return ComposeTestSession(root, composition, recomposer, frameClock, job)
+    return ComposeTestSession(root, composition, recomposer, frameClock, focusManager, job)
 }
 
 suspend fun ComposeTestSession.awaitIdle() {
