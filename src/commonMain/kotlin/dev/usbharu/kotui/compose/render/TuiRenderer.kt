@@ -15,6 +15,8 @@ class TuiRenderer(
     screenHeight: Int,
     private val output: (String) -> Unit = ::print,
 ) {
+    constructor(screenWidth: Int, screenHeight: Int) : this(screenWidth, screenHeight, ::print)
+
     var screenWidth: Int = screenWidth
         private set
     var screenHeight: Int = screenHeight
