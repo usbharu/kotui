@@ -29,4 +29,12 @@ class ModifierTest {
         assertEquals(4, node.preferredWidth)
         assertEquals(1, node.preferredHeight)
     }
+
+    @Test
+    fun equivalentModifierChainsAreEqual() {
+        assertEquals(
+            Modifier.width(10).height(2).focusable(),
+            Modifier.width(10).height(2).focusable(),
+        )
+    }
 }
