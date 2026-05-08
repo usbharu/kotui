@@ -10,7 +10,13 @@ import dev.usbharu.kotui.utils.SixelSupport
 import dev.usbharu.kotui.utils.TerminalCaps
 import dev.usbharu.kotui.utils.takeDisplayWidth
 
-class TuiRenderer(screenWidth: Int, screenHeight: Int) {
+class TuiRenderer(
+    screenWidth: Int,
+    screenHeight: Int,
+    private val output: (String) -> Unit = ::print,
+) {
+    constructor(screenWidth: Int, screenHeight: Int) : this(screenWidth, screenHeight, ::print)
+
     var screenWidth: Int = screenWidth
         private set
     var screenHeight: Int = screenHeight
@@ -188,7 +194,7 @@ class TuiRenderer(screenWidth: Int, screenHeight: Int) {
             sb.append(Ansi.CURSOR_HIDE)
         }
 
-        print(sb.toString())
+        output(sb.toString())
     }
 
     private fun styleToAnsi(style: Style): String = buildString {
