@@ -34,9 +34,9 @@ fun <T> SelectableList(
         LaunchedEffect(focusId) { focusManager.requestFocus(focusId) }
     }
 
-    val rows = ListWidgetOps.rows(visibleRows, items.size)
     val scrollState = remember { mutableStateOf(0) }
     val viewport = ListWidgetOps.viewport(items.size, selectedIndex, visibleRows, scrollState.value)
+    val rows = viewport.rows
     val clampedSelected = viewport.selectedIndex
     if (viewport.scroll != scrollState.value) scrollState.value = viewport.scroll
 
@@ -100,9 +100,9 @@ fun <T> MultiSelectList(
     val focusId = remember { focusManager.allocateFocusId() }
     val isFocused = focusManager.isFocused(focusId)
 
-    val rows = ListWidgetOps.rows(visibleRows, items.size)
     val scrollState = remember { mutableStateOf(0) }
     val viewport = ListWidgetOps.viewport(items.size, cursorIndex, visibleRows, scrollState.value)
+    val rows = viewport.rows
     val clampedCursor = viewport.selectedIndex
     if (viewport.scroll != scrollState.value) scrollState.value = viewport.scroll
 
