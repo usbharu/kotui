@@ -2,7 +2,7 @@ package dev.usbharu.kotui.compose.widget
 
 import dev.usbharu.kotui.utils.displayWidth
 
-internal const val DefaultCompletionPopupMaxWidth = 80
+internal const val DEFAULT_COMPLETION_POPUP_MAX_WIDTH = 80
 
 internal data class CompletionWindow(
     val items: List<String>,
@@ -93,7 +93,7 @@ internal fun commitCompletionValueIfValid(
 internal fun completionPopupWidth(
     items: List<String>,
     display: (String) -> String,
-    maxWidth: Int = DefaultCompletionPopupMaxWidth,
+    maxWidth: Int = DEFAULT_COMPLETION_POPUP_MAX_WIDTH,
 ): Int {
     val contentWidth = items.maxOfOrNull { display(it).displayWidth() } ?: return 0
     val borderedWidth = contentWidth.coerceAtLeast(1) + 4
