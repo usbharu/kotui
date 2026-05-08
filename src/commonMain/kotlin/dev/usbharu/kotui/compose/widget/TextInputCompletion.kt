@@ -1,5 +1,9 @@
 package dev.usbharu.kotui.compose.widget
 
+import dev.usbharu.kotui.utils.displayWidth
+
+internal const val DEFAULT_COMPLETION_POPUP_MAX_WIDTH = 80
+
 internal data class CompletionWindow(
     val items: List<String>,
     val selectedIndex: Int,
@@ -8,6 +12,13 @@ internal data class CompletionWindow(
 ) {
     val isVisible: Boolean get() = items.isNotEmpty() && visibleRows > 0
 }
+
+internal val EmptyCompletionWindow = CompletionWindow(
+    items = emptyList(),
+    selectedIndex = 0,
+    scrollIndex = 0,
+    visibleRows = 0,
+)
 
 internal fun buildCompletionWindow(
     query: String,
@@ -25,7 +36,7 @@ internal fun buildCompletionWindow(
     }
 
     if (items.isEmpty()) {
-        return CompletionWindow(items = emptyList(), selectedIndex = 0, scrollIndex = 0, visibleRows = 0)
+        return EmptyCompletionWindow
     }
 
     val visibleRows = requestedVisibleRows.coerceAtLeast(1).coerceAtMost(items.size)
@@ -58,7 +69,6 @@ internal fun applyCompletionValue(
 
 internal data class CompletionCommitResult(
     val replacement: String,
-    val consumeEnter: Boolean = true,
 )
 
 internal fun commitCompletionValue(
@@ -67,7 +77,27 @@ internal fun commitCompletionValue(
     transform: (String, String) -> String,
 ): CompletionCommitResult {
     val replacement = applyCompletionValue(currentValue, candidate, transform)
-    return CompletionCommitResult(replacement = replacement, consumeEnter = true)
+    return CompletionCommitResult(replacement = replacement)
+}
+
+internal fun commitCompletionValueIfValid(
+    currentValue: String,
+    candidate: String,
+    transform: (String, String) -> String,
+    inputValidator: TextInputValidator,
+): CompletionCommitResult? {
+    val commit = commitCompletionValue(currentValue, candidate, transform)
+    return commit.takeIf { inputValidator.isValid(it.replacement) }
+}
+
+internal fun completionPopupWidth(
+    items: List<String>,
+    display: (String) -> String,
+    maxWidth: Int = DEFAULT_COMPLETION_POPUP_MAX_WIDTH,
+): Int {
+    val contentWidth = items.maxOfOrNull { display(it).displayWidth() } ?: return 0
+    val borderedWidth = contentWidth.coerceAtLeast(1) + 4
+    return borderedWidth.coerceAtMost(maxWidth.coerceAtLeast(1))
 }
 
 internal fun shouldShowCompletionPopup(

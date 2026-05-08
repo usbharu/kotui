@@ -35,6 +35,7 @@ class TuiEventDispatcherTest {
     fun focusedNodeKeyHandlerConsumesBeforeParent() {
         val manager = FocusManager()
         val calls = mutableListOf<String>()
+        var cleared = false
         val child = focusable(manager, "child").apply {
             onKeyEvent = { calls += "child"; true }
         }
@@ -45,10 +46,16 @@ class TuiEventDispatcherTest {
         val root = TuiNode("root").apply { insertAt(0, parent) }
         manager.requestFocus(child.focusId)
 
-        val dispatcher = TuiEventDispatcher(root, manager) {}
+        val dispatcher = TuiEventDispatcher(
+            rootNode = root,
+            focusManager = manager,
+            publishUnhandledKey = {},
+            clearHandledKey = { cleared = true },
+        )
 
         assertTrue(dispatcher.dispatchKey(KeyEvent('x', Key.CHAR)))
         assertEquals(listOf("child"), calls)
+        assertTrue(cleared)
     }
 
     @Test

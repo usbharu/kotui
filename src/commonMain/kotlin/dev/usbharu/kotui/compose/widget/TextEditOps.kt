@@ -97,6 +97,17 @@ internal object TextEditOps {
         }
     }
 
+    fun replaceIfValid(
+        value: String,
+        cursor: Int,
+        selection: IntRange?,
+        insert: String,
+        inputValidator: TextInputValidator,
+    ): Pair<String, Int>? {
+        val replacement = replace(value, cursor, selection, insert)
+        return replacement.takeIf { (newValue, _) -> inputValidator.isValid(newValue) }
+    }
+
     fun deleteRange(value: String, start: Int, end: Int): Pair<String, Int> {
         val s = start.coerceAtLeast(0).coerceAtMost(value.length)
         val e = end.coerceAtLeast(s).coerceAtMost(value.length)

@@ -2,6 +2,7 @@ package dev.usbharu.kotui.compose.widget
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class TextEditOpsTest {
 
@@ -75,6 +76,39 @@ class TextEditOpsTest {
         val (v, c) = TextEditOps.deleteRange("hello", 1, 4)
         assertEquals("ho", v)
         assertEquals(1, c)
+    }
+
+    @Test
+    fun replaceIfValidAcceptsValidCandidate() {
+        val replacement = TextEditOps.replaceIfValid(
+            value = "12",
+            cursor = 2,
+            selection = null,
+            insert = "3",
+            inputValidator = TextInputValidator.AsciiDigitsOnly,
+        )
+
+        assertEquals("123" to 3, replacement)
+    }
+
+    @Test
+    fun replaceIfValidRejectsWholeInsert() {
+        val replacement = TextEditOps.replaceIfValid(
+            value = "12",
+            cursor = 2,
+            selection = null,
+            insert = "a3",
+            inputValidator = TextInputValidator.AsciiDigitsOnly,
+        )
+
+        assertNull(replacement)
+    }
+
+    @Test
+    fun deleteRangeIsNotBlockedByValidator() {
+        val (v, c) = TextEditOps.deleteRange("12a3", 2, 3)
+        assertEquals("123", v)
+        assertEquals(2, c)
     }
 
     @Test

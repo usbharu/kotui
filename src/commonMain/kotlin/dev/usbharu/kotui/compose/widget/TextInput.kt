@@ -2,6 +2,7 @@ package dev.usbharu.kotui.compose.widget
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ComposeNode
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import dev.usbharu.kotui.compose.applier.TuiApplier
@@ -21,6 +22,8 @@ import dev.usbharu.kotui.core.Style
 import dev.usbharu.kotui.utils.Ansi
 import dev.usbharu.kotui.utils.displayWidth
 
+private const val MAX_TEXT_INPUT_INTRINSIC_WIDTH = 256
+
 @Composable
 fun TextInput(
     value: String,
@@ -31,6 +34,7 @@ fun TextInput(
     enableEditing: Boolean = true,
     decoration: TextInputDecoration = TextInputDecoration.Default,
     editingFeatures: TextEditingFeatures = TextEditingFeatures.Default,
+    inputValidator: TextInputValidator = TextInputValidator.AllowAny,
     completionCandidates: List<String> = emptyList(),
     completionVisibleRows: Int = 5,
     completionShowOnEmptyQuery: Boolean = false,
@@ -51,40 +55,33 @@ fun TextInput(
     val completionScrollState = remember { mutableStateOf(0) }
     val completionQueryState = remember { mutableStateOf(value) }
     val completionDismissedForValueState = remember { mutableStateOf<String?>(null) }
-    val bodyStyleState = remember { mutableStateOf(Style()) }
-    val bodyFocusedStyleState = remember { mutableStateOf<Style?>(null) }
+    val modifierValues = remember(modifier) { modifier.extractTextInputModifierValues() }
 
     // Keep cursor/anchor within bounds if the caller shrinks `value`.
     val safeCursor = TextEditOps.clampToBoundary(value, cursorState.value.coerceIn(0, value.length))
-    if (safeCursor != cursorState.value) cursorState.value = safeCursor
-    anchorState.value?.let { a ->
-        val safeAnchor = TextEditOps.clampToBoundary(value, a.coerceIn(0, value.length))
-        if (safeAnchor != a) anchorState.value = safeAnchor
-        if (anchorState.value == cursorState.value) anchorState.value = null
+    val safeAnchor = anchorState.value?.let { a ->
+        TextEditOps.clampToBoundary(value, a.coerceIn(0, value.length))
     }
-
-    if (completionQueryState.value != value) {
-        completionQueryState.value = value
-        completionSelectionState.value = 0
-        completionScrollState.value = 0
-    }
-    completionDismissedForValueState.value?.let { dismissed ->
-        if (dismissed != value) completionDismissedForValueState.value = null
-    }
+    val completionQueryChanged = completionQueryState.value != value
+    val effectiveCompletionSelection = if (completionQueryChanged) 0 else completionSelectionState.value
+    val effectiveCompletionScroll = if (completionQueryChanged) 0 else completionScrollState.value
+    val effectiveDismissedForValue = completionDismissedForValueState.value?.takeIf { it == value }
 
     val prefix = if (isFocused) "> " else "  "
     val showPlaceholder = !isFocused && value.isEmpty()
     val displayBody = if (showPlaceholder) placeholder else value
     val displayText = prefix + displayBody
+    val bodyPreferredWidth = modifierValues.preferredWidth
+        ?: displayText.displayWidth().coerceAtMost(MAX_TEXT_INPUT_INTRINSIC_WIDTH)
 
     val cursorPosition = if (isFocused) {
-        prefix.displayWidth() + value.substring(0, cursorState.value).displayWidth()
+        prefix.displayWidth() + value.substring(0, safeCursor).displayWidth()
     } else null
 
     val highlights: List<TextHighlight>? = if (isFocused && editingFeatures.selection) {
-        anchorState.value?.let { anchor ->
-            val selStart = minOf(anchor, cursorState.value)
-            val selEnd = maxOf(anchor, cursorState.value)
+        safeAnchor?.let { anchor ->
+            val selStart = minOf(anchor, safeCursor)
+            val selEnd = maxOf(anchor, safeCursor)
             if (selStart == selEnd) null
             else {
                 val prefixWidth = prefix.displayWidth()
@@ -95,20 +92,18 @@ fun TextInput(
         }
     } else null
 
-    val completionWindow = buildCompletionWindow(
-        query = value,
-        candidates = completionCandidates,
-        requestedVisibleRows = completionVisibleRows,
-        showOnEmptyQuery = completionShowOnEmptyQuery,
-        matcher = completionMatcher,
-        selectedIndex = completionSelectionState.value,
-        scrollIndex = completionScrollState.value,
-    )
-    if (completionSelectionState.value != completionWindow.selectedIndex) {
-        completionSelectionState.value = completionWindow.selectedIndex
-    }
-    if (completionScrollState.value != completionWindow.scrollIndex) {
-        completionScrollState.value = completionWindow.scrollIndex
+    val completionWindow = if (isFocused && enableEditing && completionCandidates.isNotEmpty()) {
+        buildCompletionWindow(
+            query = value,
+            candidates = completionCandidates,
+            requestedVisibleRows = completionVisibleRows,
+            showOnEmptyQuery = completionShowOnEmptyQuery,
+            matcher = completionMatcher,
+            selectedIndex = effectiveCompletionSelection,
+            scrollIndex = effectiveCompletionScroll,
+        )
+    } else {
+        EmptyCompletionWindow
     }
 
     val showCompletion = shouldShowCompletionPopup(
@@ -116,14 +111,33 @@ fun TextInput(
         enableEditing = enableEditing,
         hasCandidates = completionWindow.isVisible,
         value = value,
-        dismissedForValue = completionDismissedForValueState.value,
+        dismissedForValue = effectiveDismissedForValue,
     )
     val bodyStyles = resolveTextInputStyles(
         enableEditing = enableEditing,
         decoration = decoration,
-        modifierStyle = bodyStyleState.value,
-        modifierFocusedStyle = bodyFocusedStyleState.value,
+        modifierStyle = modifierValues.style,
+        modifierFocusedStyle = modifierValues.focusedStyle,
     )
+
+    SideEffect {
+        if (safeCursor != cursorState.value) cursorState.value = safeCursor
+        if (safeAnchor != anchorState.value) anchorState.value = safeAnchor
+        if (anchorState.value == cursorState.value) anchorState.value = null
+
+        if (completionQueryState.value != value) {
+            completionQueryState.value = value
+        }
+        if (completionSelectionState.value != completionWindow.selectedIndex) {
+            completionSelectionState.value = completionWindow.selectedIndex
+        }
+        if (completionScrollState.value != completionWindow.scrollIndex) {
+            completionScrollState.value = completionWindow.scrollIndex
+        }
+        if (completionDismissedForValueState.value != effectiveDismissedForValue) {
+            completionDismissedForValueState.value = effectiveDismissedForValue
+        }
+    }
 
     ComposeNode<TuiNode, TuiApplier>(
         factory = {
@@ -135,9 +149,10 @@ fun TextInput(
         update = {
             set(modifier) {
                 applyModifier(it)
-                bodyStyleState.value = style
-                bodyFocusedStyleState.value = focusedStyle
+                onKeyEvent = null
+                onPaste = null
             }
+            set(bodyPreferredWidth) { preferredWidth = it }
         },
         content = {
             ComposeNode<TuiNode, TuiApplier>(
@@ -162,6 +177,7 @@ fun TextInput(
                             onSubmit = onSubmit,
                             enableEditing = enableEditing,
                             features = editingFeatures,
+                            inputValidator = inputValidator,
                             clipboard = clipboard,
                             cursor = cursorState,
                             anchor = anchorState,
@@ -169,10 +185,12 @@ fun TextInput(
                             completionScroll = completionScrollState,
                             completionDismissedForValue = completionDismissedForValueState,
                             completionWindow = completionWindow,
+                            completionVisible = showCompletion,
+                            modifierKeyHandler = modifierValues.onKeyEvent,
                             completionTransform = completionTransform,
                         ),
                     ) { b ->
-                        onKeyEvent = { event -> handleKey(b, event) }
+                        onKeyEvent = b.modifierKeyHandler ?: { event -> handleKey(b, event) }
                         onPaste = { text ->
                             if (b.enableEditing && b.features.clipboard) {
                                 insertText(b, text)
@@ -183,12 +201,7 @@ fun TextInput(
                 }
             )
             if (showCompletion) {
-                val popupWidth = completionWindow.items
-                    .map { completionDisplay(it).displayWidth() }
-                    .maxOrNull()
-                    ?.coerceAtLeast(1)
-                    ?.plus(4)
-                    ?: 0
+                val popupWidth = completionPopupWidth(completionWindow.items, completionDisplay)
                 val popupHeight = completionWindow.visibleRows + 2
 
                 Panel(
@@ -212,12 +225,20 @@ fun TextInput(
     )
 }
 
+private data class TextInputModifierValues(
+    val onKeyEvent: ((KeyEvent) -> Boolean)?,
+    val style: Style,
+    val focusedStyle: Style?,
+    val preferredWidth: Int?,
+)
+
 private data class TextInputBindings(
     val value: String,
     val onValueChange: (String) -> Unit,
     val onSubmit: (() -> Unit)?,
     val enableEditing: Boolean,
     val features: TextEditingFeatures,
+    val inputValidator: TextInputValidator,
     val clipboard: Clipboard,
     val cursor: androidx.compose.runtime.MutableState<Int>,
     val anchor: androidx.compose.runtime.MutableState<Int?>,
@@ -225,8 +246,21 @@ private data class TextInputBindings(
     val completionScroll: androidx.compose.runtime.MutableState<Int>,
     val completionDismissedForValue: androidx.compose.runtime.MutableState<String?>,
     val completionWindow: CompletionWindow,
+    val completionVisible: Boolean,
+    val modifierKeyHandler: ((KeyEvent) -> Boolean)?,
     val completionTransform: (String, String) -> String,
 )
+
+private fun Modifier.extractTextInputModifierValues(): TextInputModifierValues {
+    val probe = TuiNode("TextInputModifierProbe")
+    probe.applyModifier(this)
+    return TextInputModifierValues(
+        onKeyEvent = probe.onKeyEvent,
+        style = probe.style,
+        focusedStyle = probe.focusedStyle,
+        preferredWidth = probe.preferredWidth,
+    )
+}
 
 private fun currentSelection(b: TextInputBindings): IntRange? {
     val a = b.anchor.value ?: return null
@@ -262,18 +296,30 @@ private fun moveCursor(b: TextInputBindings, newPos: Int, extendSelection: Boole
     if (b.anchor.value == b.cursor.value) b.anchor.value = null
 }
 
-private fun insertText(b: TextInputBindings, insert: String) {
+private fun insertText(b: TextInputBindings, insert: String): Boolean {
     val sel = currentSelection(b)
-    val (newValue, newCursor) = TextEditOps.replace(b.value, b.cursor.value, sel, insert)
+    val (newValue, newCursor) = TextEditOps.replaceIfValid(
+        value = b.value,
+        cursor = b.cursor.value,
+        selection = sel,
+        insert = insert,
+        inputValidator = b.inputValidator,
+    ) ?: return false
     clearSelection(b)
     b.cursor.value = newCursor
     b.onValueChange(newValue)
+    return true
 }
 
-private fun acceptCompletion(b: TextInputBindings): Boolean {
-    if (!b.completionWindow.isVisible) return false
+private fun acceptCompletion(b: TextInputBindings) {
+    if (!b.completionWindow.isVisible) return
     val candidate = b.completionWindow.items[b.completionWindow.selectedIndex]
-    val commit = commitCompletionValue(b.value, candidate, b.completionTransform)
+    val commit = commitCompletionValueIfValid(
+        currentValue = b.value,
+        candidate = candidate,
+        transform = b.completionTransform,
+        inputValidator = b.inputValidator,
+    ) ?: return
     val replacement = commit.replacement
     clearSelection(b)
     b.cursor.value = replacement.length
@@ -281,7 +327,6 @@ private fun acceptCompletion(b: TextInputBindings): Boolean {
     if (replacement != b.value) {
         b.onValueChange(replacement)
     }
-    return commit.consumeEnter
 }
 
 private fun deleteSelection(b: TextInputBindings): Boolean {
@@ -338,7 +383,7 @@ private fun deleteToLineStart(b: TextInputBindings) {
 private fun handleKey(b: TextInputBindings, event: KeyEvent): Boolean {
     // Enter submits regardless of editing state.
     if (event.key == Key.ENTER) {
-        if (b.enableEditing && b.completionWindow.isVisible) {
+        if (b.enableEditing && b.completionVisible) {
             acceptCompletion(b)
             return true
         }
@@ -348,12 +393,12 @@ private fun handleKey(b: TextInputBindings, event: KeyEvent): Boolean {
 
     if (!b.enableEditing) return false
 
-    if (event.key == Key.ESCAPE && b.completionWindow.isVisible) {
+    if (event.key == Key.ESCAPE && b.completionVisible) {
         b.completionDismissedForValue.value = b.value
         return true
     }
 
-    if (b.completionWindow.isVisible) {
+    if (b.completionVisible) {
         when (event.key) {
             Key.ARROW_UP -> {
                 val next = (b.completionSelection.value - 1).coerceAtLeast(0)

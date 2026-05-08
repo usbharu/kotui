@@ -19,6 +19,7 @@ class AnsiKeyDecoder {
     private var state = State.IDLE
     private val csiBuf = StringBuilder()
     private val pasteBuf = StringBuilder()
+    private var previousWasCr = false
 
     /** True if the decoder is mid-sequence and would produce more output with further input. */
     fun hasPending(): Boolean = state != State.IDLE
@@ -47,10 +48,15 @@ class AnsiKeyDecoder {
             State.IDLE -> Unit
         }
         state = State.IDLE
+        previousWasCr = false
         return out
     }
 
     private fun feedInto(ch: Char, out: MutableList<InputEvent>) {
+        if (state == State.IDLE && previousWasCr) {
+            previousWasCr = false
+            if (ch == '\n') return
+        }
         when (state) {
             State.IDLE -> handleIdle(ch, out)
             State.ESC -> handleEsc(ch, out)
@@ -64,7 +70,11 @@ class AnsiKeyDecoder {
         when (ch) {
             '\u001B' -> state = State.ESC
             '\t' -> out += KeyEvent(ch, Key.TAB)
-            '\r', '\n' -> out += KeyEvent(ch, Key.ENTER)
+            '\r' -> {
+                out += KeyEvent(ch, Key.ENTER)
+                previousWasCr = true
+            }
+            '\n' -> out += KeyEvent(ch, Key.ENTER)
             '\u007F', '\b' -> out += KeyEvent(ch, Key.BACKSPACE)
             else -> {
                 val code = ch.code

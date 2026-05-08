@@ -154,9 +154,12 @@ fun runTui(
             renderer.render(rootNode, focusManager)
         }
 
-        val eventDispatcher = TuiEventDispatcher(rootNode, focusManager) { event ->
-            keyEventState.value = event
-        }
+        val eventDispatcher = TuiEventDispatcher(
+            rootNode = rootNode,
+            focusManager = focusManager,
+            publishUnhandledKey = { event -> keyEventState.value = event },
+            clearHandledKey = { keyEventState.value = null },
+        )
 
         // Pump terminal input on a background dispatcher so the main render
         // loop can also be woken by timers (e.g. animations) without waiting

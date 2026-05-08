@@ -14,6 +14,7 @@ fun AutocompleteTextInput(
     enableEditing: Boolean = true,
     decoration: TextInputDecoration = TextInputDecoration.Default,
     editingFeatures: TextEditingFeatures = TextEditingFeatures.Default,
+    inputValidator: TextInputValidator = TextInputValidator.AllowAny,
     visibleRows: Int = 5,
     showOnEmptyQuery: Boolean = false,
     suggestionMatcher: (String, String) -> Boolean = { query, candidate ->
@@ -31,6 +32,7 @@ fun AutocompleteTextInput(
         enableEditing = enableEditing,
         decoration = decoration,
         editingFeatures = editingFeatures,
+        inputValidator = inputValidator,
         completionCandidates = suggestions,
         completionVisibleRows = visibleRows,
         completionShowOnEmptyQuery = showOnEmptyQuery,

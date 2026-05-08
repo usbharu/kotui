@@ -2,6 +2,7 @@ package dev.usbharu.kotui.compose.widget
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class TextInputCompletionTest {
 
@@ -68,7 +69,7 @@ class TextInputCompletionTest {
     }
 
     @Test
-    fun completionCommitAlwaysConsumesEnter() {
+    fun completionCommitReturnsReplacement() {
         val commit = commitCompletionValue(
             currentValue = "apple",
             candidate = "apple",
@@ -76,7 +77,40 @@ class TextInputCompletionTest {
         )
 
         assertEquals("apple", commit.replacement)
-        assertEquals(true, commit.consumeEnter)
+    }
+
+    @Test
+    fun completionCommitRejectsInvalidReplacement() {
+        val commit = commitCompletionValueIfValid(
+            currentValue = "12",
+            candidate = "12a",
+            transform = { _, candidate -> candidate },
+            inputValidator = TextInputValidator.AsciiDigitsOnly,
+        )
+
+        assertNull(commit)
+    }
+
+    @Test
+    fun completionPopupWidthClampsLongSuggestions() {
+        val width = completionPopupWidth(
+            items = listOf("a".repeat(200)),
+            display = { it },
+            maxWidth = 40,
+        )
+
+        assertEquals(40, width)
+    }
+
+    @Test
+    fun completionPopupWidthIncludesPanelPadding() {
+        val width = completionPopupWidth(
+            items = listOf("apple"),
+            display = { it },
+            maxWidth = 40,
+        )
+
+        assertEquals(9, width)
     }
 
     @Test

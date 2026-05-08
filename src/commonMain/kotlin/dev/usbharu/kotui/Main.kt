@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import dev.usbharu.kotui.compose.layout.AlignItems
 import dev.usbharu.kotui.compose.layout.JustifyContent
 import dev.usbharu.kotui.compose.modifier.*
+import dev.usbharu.kotui.compose.runtime.Key
 import dev.usbharu.kotui.compose.runtime.LocalQuit
 import dev.usbharu.kotui.compose.runtime.onKey
 import dev.usbharu.kotui.compose.runtime.runTui
@@ -20,8 +21,8 @@ fun App() {
 
     val quit = LocalQuit.current
 
-    // Global shortcuts while we're not in text editors (which need text input).
-    if (screen != "editor" && screen != "textarea") {
+    // Global shortcuts while we're not in text-input-heavy screens.
+    if (screen != "editor" && screen != "showcase" && screen != "textarea") {
         onKey { ev ->
             when (ev.char) {
                 'q' -> quit()
@@ -55,7 +56,7 @@ fun App() {
                 },
                 onCancel = { screen = "list" },
             )
-            "showcase" -> Showcase()
+            "showcase" -> Showcase(onBack = { screen = "list" })
             "image" -> ImageTest()
             "flex" -> FlexShowcase()
             "select" -> SelectShowcase()
@@ -139,7 +140,7 @@ private fun TaskList(
                 Button("Help ?") { showHelp = !showHelp }
             }
 
-            Text("  Tab=Focus  Enter=Edit selected  ?=Help", dim)
+            Text("  Tab=Focus  Enter(on list)=Edit selected  Enter(on button)=Activate  ?=Help", dim)
         }
 
         if (showHelp) {
@@ -195,12 +196,17 @@ private fun TaskEditor(
 }
 
 @Composable
-private fun Showcase() {
+private fun Showcase(onBack: () -> Unit) {
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
     val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
+    var digitsOnly by remember { mutableStateOf("") }
+    var lettersOnly by remember { mutableStateOf("") }
+    var alphanumericOnly by remember { mutableStateOf("") }
     var defaultInput by remember { mutableStateOf("") }
     var customInput by remember { mutableStateOf("custom style") }
     var plainInput by remember { mutableStateOf("plain opt-out") }
+
+    onKey { ev -> if (ev.char == '\u001B') onBack() }
 
     Column {
         Text("  === Component Showcase ===", title)
@@ -213,6 +219,43 @@ private fun Showcase() {
             Badge("DONE", Modifier.style(Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_GREEN, bold = true)))
             Badge("WARN", Modifier.style(Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_YELLOW, bold = true)))
         }
+
+        Spacer(Modifier.height(1))
+
+        Text("  TextInput validators:", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
+        Row(gap = 2) {
+            Column {
+                Text("  digits only", dim)
+                TextInput(
+                    value = digitsOnly,
+                    onValueChange = { digitsOnly = it },
+                    placeholder = "12345",
+                    modifier = Modifier.width(18),
+                    inputValidator = TextInputValidator.AsciiDigitsOnly,
+                )
+            }
+            Column {
+                Text("  ASCII letters", dim)
+                TextInput(
+                    value = lettersOnly,
+                    onValueChange = { lettersOnly = it },
+                    placeholder = "abcXYZ",
+                    modifier = Modifier.width(18),
+                    inputValidator = TextInputValidator.AsciiLettersOnly,
+                )
+            }
+            Column {
+                Text("  ASCII alnum", dim)
+                TextInput(
+                    value = alphanumericOnly,
+                    onValueChange = { alphanumericOnly = it },
+                    placeholder = "abc123",
+                    modifier = Modifier.width(18),
+                    inputValidator = TextInputValidator.AsciiAlphanumericOnly,
+                )
+            }
+        }
+        Text("  Invalid edits are blocked as a whole, including paste.", dim)
 
         Spacer(Modifier.height(1))
 
@@ -524,9 +567,19 @@ private fun TextAreaShowcase(onBack: () -> Unit) {
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
     val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
 
-    onKey { ev -> if (ev.char == '\u001B') onBack() }
-
-    Column(modifier = Modifier.focusScope(), gap = 1) {
+    Column(
+        modifier = Modifier
+            .focusScope()
+            .onKeyEvent { ev ->
+                if (ev.key == Key.ESCAPE) {
+                    onBack()
+                    true
+                } else {
+                    false
+                }
+            },
+        gap = 1,
+    ) {
         Text("  === TextArea Showcase ===", title)
         Text("  Tab=focus  Enter=new line  Ctrl+S=save  Esc=back", dim)
 
