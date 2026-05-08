@@ -22,6 +22,8 @@ import dev.usbharu.kotui.core.Style
 import dev.usbharu.kotui.utils.Ansi
 import dev.usbharu.kotui.utils.displayWidth
 
+private const val MAX_TEXT_INPUT_INTRINSIC_WIDTH = 256
+
 @Composable
 fun TextInput(
     value: String,
@@ -69,6 +71,8 @@ fun TextInput(
     val showPlaceholder = !isFocused && value.isEmpty()
     val displayBody = if (showPlaceholder) placeholder else value
     val displayText = prefix + displayBody
+    val bodyPreferredWidth = modifierValues.preferredWidth
+        ?: displayText.displayWidth().coerceAtMost(MAX_TEXT_INPUT_INTRINSIC_WIDTH)
 
     val cursorPosition = if (isFocused) {
         prefix.displayWidth() + value.substring(0, safeCursor).displayWidth()
@@ -143,12 +147,12 @@ fun TextInput(
             }
         },
         update = {
-            set(TextInputLayoutModifier(displayText.displayWidth(), modifier)) { layoutModifier ->
-                preferredWidth = layoutModifier.bodyWidth
-                applyModifier(layoutModifier.modifier)
+            set(modifier) {
+                applyModifier(it)
                 onKeyEvent = null
                 onPaste = null
             }
+            set(bodyPreferredWidth) { preferredWidth = it }
         },
         content = {
             ComposeNode<TuiNode, TuiApplier>(
@@ -190,6 +194,7 @@ fun TextInput(
                         onPaste = { text ->
                             if (b.enableEditing && b.features.clipboard) {
                                 insertText(b, text)
+                                true
                             } else false
                         }
                     }
@@ -220,15 +225,11 @@ fun TextInput(
     )
 }
 
-private data class TextInputLayoutModifier(
-    val bodyWidth: Int,
-    val modifier: Modifier,
-)
-
 private data class TextInputModifierValues(
     val onKeyEvent: ((KeyEvent) -> Boolean)?,
     val style: Style,
     val focusedStyle: Style?,
+    val preferredWidth: Int?,
 )
 
 private data class TextInputBindings(
@@ -257,6 +258,7 @@ private fun Modifier.extractTextInputModifierValues(): TextInputModifierValues {
         onKeyEvent = probe.onKeyEvent,
         style = probe.style,
         focusedStyle = probe.focusedStyle,
+        preferredWidth = probe.preferredWidth,
     )
 }
 
