@@ -221,7 +221,7 @@ class TextInputOpsTest {
     }
 
     private class TestBindings(
-        val bindings: TextInputBindings,
+        val bindings: TextInputOpsBindings,
         var lastValue: String?,
     ) {
         val cursor get() = bindings.cursor
@@ -238,7 +238,7 @@ class TextInputOpsTest {
         onSubmit: (() -> Unit)? = null,
     ): TestBindings {
         var holder: TestBindings? = null
-        val bindings = TextInputBindings(
+        val bindings = TextInputOpsBindings(
             value = value,
             onValueChange = { next -> holder!!.lastValue = next },
             onSubmit = onSubmit,

@@ -8,7 +8,7 @@ import dev.usbharu.kotui.compose.runtime.KeyEvent
 import dev.usbharu.kotui.core.Style
 import dev.usbharu.kotui.utils.displayWidth
 
-internal data class TextInputBindings(
+internal data class TextInputOpsBindings(
     val value: String,
     val onValueChange: (String) -> Unit,
     val onSubmit: (() -> Unit)?,
@@ -45,14 +45,14 @@ internal object TextInputOps {
         return listOf(TextHighlight(startCol, endCol, Style(reverse = true)))
     }
 
-    fun currentSelection(b: TextInputBindings): IntRange? {
+    fun currentSelection(b: TextInputOpsBindings): IntRange? {
         val a = b.anchor.value ?: return null
         val c = b.cursor.value
         if (a == c) return null
         return minOf(a, c)..maxOf(a, c)
     }
 
-    fun handleKey(b: TextInputBindings, event: KeyEvent): Boolean {
+    fun handleKey(b: TextInputOpsBindings, event: KeyEvent): Boolean {
         // Enter submits regardless of editing state.
         if (event.key == Key.ENTER) {
             b.onSubmit?.invoke()
@@ -167,7 +167,7 @@ internal object TextInputOps {
         return false
     }
 
-    fun insertText(b: TextInputBindings, insert: String) {
+    fun insertText(b: TextInputOpsBindings, insert: String) {
         val sel = currentSelection(b)
         val (newValue, newCursor) = TextEditOps.replace(b.value, b.cursor.value, sel, insert)
         clearSelection(b)
@@ -175,22 +175,22 @@ internal object TextInputOps {
         b.onValueChange(newValue)
     }
 
-    private fun selectionBounds(b: TextInputBindings): Pair<Int, Int>? {
+    private fun selectionBounds(b: TextInputOpsBindings): Pair<Int, Int>? {
         val sel = currentSelection(b) ?: return null
         val start = sel.first.coerceIn(0, b.value.length)
         val end = sel.last.coerceIn(start, b.value.length)
         return start to end
     }
 
-    private fun clearSelection(b: TextInputBindings) {
+    private fun clearSelection(b: TextInputOpsBindings) {
         b.anchor.value = null
     }
 
-    private fun ensureAnchor(b: TextInputBindings) {
+    private fun ensureAnchor(b: TextInputOpsBindings) {
         if (b.anchor.value == null) b.anchor.value = b.cursor.value
     }
 
-    private fun moveCursor(b: TextInputBindings, newPos: Int, extendSelection: Boolean) {
+    private fun moveCursor(b: TextInputOpsBindings, newPos: Int, extendSelection: Boolean) {
         val clamped = newPos.coerceIn(0, b.value.length)
         if (extendSelection && b.features.selection) {
             ensureAnchor(b)
@@ -202,7 +202,7 @@ internal object TextInputOps {
         if (b.anchor.value == b.cursor.value) b.anchor.value = null
     }
 
-    private fun deleteSelection(b: TextInputBindings): Boolean {
+    private fun deleteSelection(b: TextInputOpsBindings): Boolean {
         val (start, end) = selectionBounds(b) ?: return false
         val (newValue, newCursor) = TextEditOps.deleteRange(b.value, start, end)
         clearSelection(b)
@@ -211,7 +211,7 @@ internal object TextInputOps {
         return true
     }
 
-    private fun deleteBefore(b: TextInputBindings) {
+    private fun deleteBefore(b: TextInputOpsBindings) {
         if (deleteSelection(b)) return
         if (b.cursor.value == 0) return
         val prev = TextEditOps.prevCodePoint(b.value, b.cursor.value)
@@ -220,7 +220,7 @@ internal object TextInputOps {
         b.onValueChange(newValue)
     }
 
-    private fun deleteAfter(b: TextInputBindings) {
+    private fun deleteAfter(b: TextInputOpsBindings) {
         if (deleteSelection(b)) return
         if (b.cursor.value >= b.value.length) return
         val next = TextEditOps.nextCodePoint(b.value, b.cursor.value)
@@ -229,7 +229,7 @@ internal object TextInputOps {
         b.onValueChange(newValue)
     }
 
-    private fun deleteWordBefore(b: TextInputBindings) {
+    private fun deleteWordBefore(b: TextInputOpsBindings) {
         if (deleteSelection(b)) return
         val target = TextEditOps.prevWordBoundary(b.value, b.cursor.value)
         if (target == b.cursor.value) return
@@ -238,14 +238,14 @@ internal object TextInputOps {
         b.onValueChange(newValue)
     }
 
-    private fun deleteToLineEnd(b: TextInputBindings) {
+    private fun deleteToLineEnd(b: TextInputOpsBindings) {
         if (b.cursor.value >= b.value.length) return
         val (newValue, _) = TextEditOps.deleteRange(b.value, b.cursor.value, b.value.length)
         clearSelection(b)
         b.onValueChange(newValue)
     }
 
-    private fun deleteToLineStart(b: TextInputBindings) {
+    private fun deleteToLineStart(b: TextInputOpsBindings) {
         if (b.cursor.value == 0) return
         val (newValue, newCursor) = TextEditOps.deleteRange(b.value, 0, b.cursor.value)
         clearSelection(b)

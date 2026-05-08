@@ -19,12 +19,15 @@ class TextInputCompositionTest {
 
         val input = session.root.children.single()
         assertEquals("TextInput", input.tag)
-        assertEquals(LayoutPolicy.LEAF, input.layoutPolicy)
+        assertEquals(LayoutPolicy.COLUMN, input.layoutPolicy)
         assertEquals(1, input.preferredHeight)
-        assertTrue(input.focusable)
-        assertNotNull(input.onKeyEvent)
-        assertNotNull(input.onPaste)
-        assertNotNull(input.text)
+        val body = input.children.single()
+        assertEquals("TextInputBody", body.tag)
+        assertEquals(LayoutPolicy.LEAF, body.layoutPolicy)
+        assertTrue(body.focusable)
+        assertNotNull(body.onKeyEvent)
+        assertNotNull(body.onPaste)
+        assertNotNull(body.text)
 
         session.dispose()
     }

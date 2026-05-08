@@ -46,6 +46,7 @@ fun App() {
             )
             "editor" -> TaskEditor(
                 initialText = if (editIndex >= 0) tasks[editIndex] else "",
+                suggestions = tasks + listOf("Write tests", "Refactor autocomplete", "Ship patch"),
                 onSave = { text ->
                     tasks = if (editIndex >= 0)
                         tasks.mapIndexed { i, t -> if (i == editIndex) text else t }
@@ -93,7 +94,13 @@ private fun TaskList(
     onDelete: (Int) -> Unit,
 ) {
     var showHelp by remember { mutableStateOf(false) }
+    var selectedIndex by remember { mutableStateOf(0) }
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
+    val selectedTask = tasks.getOrNull(selectedIndex)
+
+    LaunchedEffect(tasks.size) {
+        selectedIndex = if (tasks.isEmpty()) 0 else selectedIndex.coerceIn(0, tasks.lastIndex)
+    }
 
     onKey { ev -> if (ev.char == '?') showHelp = !showHelp }
 
@@ -104,11 +111,21 @@ private fun TaskList(
             Text("  " + "-".repeat(50), dim)
 
             Text("  Tasks (${tasks.size}):", Modifier.style(Style(fg = Ansi.FG_YELLOW, bold = true)))
-            tasks.forEachIndexed { i, task ->
-                Text("    [${i + 1}] $task")
-            }
             if (tasks.isEmpty()) {
                 Text("    (no tasks)", dim)
+            } else {
+                SelectableList(
+                    items = tasks,
+                    selectedIndex = selectedIndex,
+                    onSelectedIndexChange = { selectedIndex = it },
+                    onActivate = { index, _ -> onEdit(index) },
+                    requestInitialFocus = true,
+                    visibleRows = 6,
+                    itemLabel = { it },
+                )
+                selectedTask?.let {
+                    Text("  Selected: [${selectedIndex + 1}] $it", Modifier.style(Style(fg = Ansi.FG_BRIGHT_CYAN)))
+                }
             }
 
             Text("  " + "-".repeat(50), dim)
@@ -116,21 +133,23 @@ private fun TaskList(
             Row {
                 Button("New Task") { onAdd() }
                 if (tasks.isNotEmpty()) {
-                    Button("Edit #1") { onEdit(0) }
-                    Button("Delete #1") { onDelete(0) }
+                    Button("Edit Selected") { onEdit(selectedIndex.coerceIn(0, tasks.lastIndex)) }
+                    Button("Delete Selected") { onDelete(selectedIndex.coerceIn(0, tasks.lastIndex)) }
                 }
                 Button("Help ?") { showHelp = !showHelp }
             }
 
-            Text("  Tab=Focus  ?=Help", dim)
+            Text("  Tab=Focus  Enter=Edit selected  ?=Help", dim)
         }
 
         if (showHelp) {
             Modal("Help", Modifier.offset(15, 4).size(50, 10).style(Style(fg = Ansi.FG_YELLOW, bg = Ansi.BG_BLUE))) {
                 val ms = Modifier.style(Style(fg = Ansi.FG_WHITE, bg = Ansi.BG_BLUE))
                 Text("", ms)
+                Text(" Up/Down - Move task selection", ms)
+                Text(" Enter   - Edit selected task", ms)
+                Text(" Delete  - Use Delete Selected button", ms)
                 Text(" Tab     - Cycle focus within scope", ms)
-                Text(" Enter   - Activate button", ms)
                 Text(" ?       - Toggle help", ms)
                 Text(" q       - Quit", ms)
                 Text("", ms)
@@ -142,7 +161,12 @@ private fun TaskList(
 }
 
 @Composable
-private fun TaskEditor(initialText: String, onSave: (String) -> Unit, onCancel: () -> Unit) {
+private fun TaskEditor(
+    initialText: String,
+    suggestions: List<String>,
+    onSave: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
     var text by remember { mutableStateOf(initialText) }
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
 
@@ -152,12 +176,14 @@ private fun TaskEditor(initialText: String, onSave: (String) -> Unit, onCancel: 
         Text("  === Task Editor ===", Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true)))
         Text("  " + "-".repeat(50), dim)
         Text("  Task name:", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
-        TextInput(
+        AutocompleteTextInput(
             value = text,
             onValueChange = { text = it },
             placeholder = "Enter task name...",
             modifier = Modifier.width(60),
             onSubmit = { if (text.isNotBlank()) onSave(text) },
+            suggestions = suggestions,
+            visibleRows = 4,
         )
         Text("  " + "-".repeat(50), dim)
         Row {
@@ -172,6 +198,9 @@ private fun TaskEditor(initialText: String, onSave: (String) -> Unit, onCancel: 
 private fun Showcase() {
     val dim = Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK))
     val title = Modifier.style(Style(fg = Ansi.FG_CYAN, bold = true))
+    var defaultInput by remember { mutableStateOf("") }
+    var customInput by remember { mutableStateOf("custom style") }
+    var plainInput by remember { mutableStateOf("plain opt-out") }
 
     Column {
         Text("  === Component Showcase ===", title)
@@ -191,6 +220,49 @@ private fun Showcase() {
         ProgressBar(progress = 0.25f, width = 24)
         ProgressBar(progress = 0.6f, width = 24, modifier = Modifier.style(Style(fg = Ansi.FG_GREEN)))
         ProgressBar(progress = 1.0f, width = 24, modifier = Modifier.style(Style(fg = Ansi.FG_MAGENTA, bold = true)))
+
+        Spacer(Modifier.height(1))
+
+        Text("  Text inputs:", Modifier.style(Style(fg = Ansi.FG_YELLOW)))
+        Row {
+            Text("  default ")
+            TextInput(
+                value = defaultInput,
+                onValueChange = { defaultInput = it },
+                placeholder = "editable",
+                modifier = Modifier.width(24),
+            )
+        }
+        Row {
+            Text("  custom  ")
+            TextInput(
+                value = customInput,
+                onValueChange = { customInput = it },
+                modifier = Modifier.width(24),
+                decoration = TextInputDecoration(
+                    style = Style(fg = Ansi.FG_BRIGHT_WHITE, bg = Ansi.BG_BLUE, underline = true),
+                    focusedStyle = Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_YELLOW, bold = true, underline = true),
+                ),
+            )
+        }
+        Row {
+            Text("  plain   ")
+            TextInput(
+                value = plainInput,
+                onValueChange = { plainInput = it },
+                modifier = Modifier.width(24),
+                decoration = TextInputDecoration.None,
+            )
+        }
+        Row {
+            Text("  locked  ")
+            TextInput(
+                value = "not editable",
+                onValueChange = {},
+                modifier = Modifier.width(24),
+                enableEditing = false,
+            )
+        }
 
         Spacer(Modifier.height(1))
 
