@@ -3,12 +3,35 @@ package dev.usbharu.kotui.compose.runtime
 import dev.usbharu.kotui.compose.focus.FocusManager
 import dev.usbharu.kotui.compose.node.TuiNode
 
-internal class TuiEventDispatcher(
-    private val rootNode: TuiNode,
-    private val focusManager: FocusManager,
-    private val clearHandledKey: () -> Unit = {},
-    private val publishUnhandledKey: (KeyEvent) -> Unit = {},
-) {
+internal class TuiEventDispatcher {
+    private val rootNode: TuiNode
+    private val focusManager: FocusManager
+    private val publishUnhandledKey: (KeyEvent) -> Unit
+    private val clearHandledKey: () -> Unit
+
+    constructor(
+        rootNode: TuiNode,
+        focusManager: FocusManager,
+        publishUnhandledKey: (KeyEvent) -> Unit = {},
+    ) : this(
+        rootNode = rootNode,
+        focusManager = focusManager,
+        publishUnhandledKey = publishUnhandledKey,
+        clearHandledKey = {},
+    )
+
+    constructor(
+        rootNode: TuiNode,
+        focusManager: FocusManager,
+        publishUnhandledKey: (KeyEvent) -> Unit,
+        clearHandledKey: () -> Unit,
+    ) {
+        this.rootNode = rootNode
+        this.focusManager = focusManager
+        this.publishUnhandledKey = publishUnhandledKey
+        this.clearHandledKey = clearHandledKey
+    }
+
     fun dispatchPaste(text: String): Boolean {
         val focused = focusManager.findFocusedNode(rootNode) ?: return false
         if (focused.onPaste?.invoke(text) == true) return true
