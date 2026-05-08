@@ -119,4 +119,91 @@ class TextEditOpsTest {
         assertEquals(3, TextEditOps.clampToBoundary(s, 3))
         assertEquals(0, TextEditOps.clampToBoundary(s, 0))
     }
+
+    @Test
+    fun wordBoundariesTreatNonAsciiAsSingleNonWordCodePoints() {
+        val s = "あfoo"
+
+        assertEquals(4, TextEditOps.nextWordBoundary(s, 0))
+        assertEquals(1, TextEditOps.prevWordBoundary(s, 4))
+    }
+
+    @Test
+    fun movementHandlesUnpairedSurrogatesAsSingleCodeUnits() {
+        val s = "\uD83Dx\uDC4D"
+
+        assertEquals(1, TextEditOps.nextCodePoint(s, 0))
+        assertEquals(2, TextEditOps.nextCodePoint(s, 1))
+        assertEquals(2, TextEditOps.prevCodePoint(s, 3))
+        assertEquals(1, TextEditOps.clampToBoundary(s, 1))
+    }
+
+    @Test
+    fun deleteRangeClampsStartAndEnd() {
+        val (fromNegative, negativeCursor) = TextEditOps.deleteRange("hello", -3, 2)
+        assertEquals("llo", fromNegative)
+        assertEquals(0, negativeCursor)
+
+        val (reversed, reversedCursor) = TextEditOps.deleteRange("hello", 4, 2)
+        assertEquals("hello", reversed)
+        assertEquals(4, reversedCursor)
+    }
+
+    @Test
+    fun clampBoundaryClampsNegativeAndPastEnd() {
+        assertEquals(0, TextEditOps.clampToBoundary("hello", -10))
+        assertEquals(5, TextEditOps.clampToBoundary("hello", 99))
+    }
+
+    @Test
+    fun wordBoundariesHandleOnlyPunctuationAndUnderscoreDigits() {
+        assertEquals(6, TextEditOps.nextWordBoundary("...abc", 0))
+        assertEquals(6, TextEditOps.nextWordBoundary("abc...", 3))
+        assertEquals(3, TextEditOps.nextWordBoundary("...", 0))
+        assertEquals(0, TextEditOps.prevWordBoundary("...", 3))
+        assertEquals(0, TextEditOps.prevWordBoundary("abc_123!", 8))
+        assertEquals(0, TextEditOps.prevWordBoundary("abc...def", 6))
+    }
+
+    @Test
+    fun replaceSelectionClampsNegativeStartAndCursorClampsNegative() {
+        val (cursorValue, cursorPos) = TextEditOps.replace("hello", -5, null, "!")
+        assertEquals("!hello", cursorValue)
+        assertEquals(1, cursorPos)
+
+        val (selectionValue, selectionPos) = TextEditOps.replace("hello", 0, -10..2, "!")
+        assertEquals("!llo", selectionValue)
+        assertEquals(1, selectionPos)
+    }
+
+    @Test
+    fun wordBoundariesStepOverSurrogatePairsAsNonWordCodePoints() {
+        val emoji = "\uD83D\uDE00"
+
+        assertEquals(6, TextEditOps.nextWordBoundary("${emoji}word", 0))
+        assertEquals(2, TextEditOps.prevWordBoundary("${emoji}word", 6))
+        assertEquals(0, TextEditOps.prevWordBoundary("${emoji}...", 5))
+    }
+
+    @Test
+    fun wordBoundariesTreatUppercaseDigitsAndUnderscoresAsOneWordRun() {
+        assertEquals(8, TextEditOps.nextWordBoundary("__ABC123!", 0))
+        assertEquals(0, TextEditOps.prevWordBoundary("__ABC123!", 8))
+    }
+
+    @Test
+    fun deleteRangeClampsPastEndAndKeepsCursorAtStart() {
+        val (value, cursor) = TextEditOps.deleteRange("hello", 2, 99)
+
+        assertEquals("he", value)
+        assertEquals(2, cursor)
+    }
+
+    @Test
+    fun unpairedSurrogatesAtEdgesDoNotMoveAsPairs() {
+        assertEquals(1, TextEditOps.nextCodePoint("\uD83D", 0))
+        assertEquals(0, TextEditOps.prevCodePoint("\uDC4D", 1))
+        assertEquals(0, TextEditOps.clampToBoundary("\uDC4D", 0))
+        assertEquals(1, TextEditOps.clampToBoundary("\uD83D", 1))
+    }
 }

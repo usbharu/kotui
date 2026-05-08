@@ -6,17 +6,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import dev.usbharu.kotui.compose.applier.TuiApplier
 import dev.usbharu.kotui.compose.modifier.Modifier
-import dev.usbharu.kotui.compose.modifier.focusedStyle
 import dev.usbharu.kotui.compose.modifier.offset
 import dev.usbharu.kotui.compose.modifier.size
-import dev.usbharu.kotui.compose.modifier.style
 import dev.usbharu.kotui.compose.node.LayoutPolicy
 import dev.usbharu.kotui.compose.node.TuiNode
 import dev.usbharu.kotui.compose.runtime.Key
 import dev.usbharu.kotui.compose.runtime.LocalFocusManager
 import dev.usbharu.kotui.compose.runtime.onKey
-import dev.usbharu.kotui.core.Style
-import dev.usbharu.kotui.utils.Ansi
 
 /**
  * Collapsed dropdown. Looks like a button while collapsed; expands into a [Modal]
@@ -44,12 +40,8 @@ fun <T> Select(
     val cursorState = remember { mutableStateOf(items.indexOf(selected).coerceAtLeast(0)) }
 
     val label = itemLabel(selected)
-    val prefix = if (isFocused) "▶ " else "  "
-    val displayText = "$prefix$label ▾ "
-
-    val focusStyled = modifier
-        .style(Style())
-        .focusedStyle(Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_CYAN, bold = true))
+    val displayText = InteractiveWidgetOps.selectText(label, isFocused)
+    val focusStyled = InteractiveWidgetOps.focusStyled(modifier)
 
     val openDropdown: () -> Unit = {
         cursorState.value = items.indexOf(selected).coerceAtLeast(0)
@@ -70,10 +62,11 @@ fun <T> Select(
             set(openDropdown) { cb ->
                 onActivate = cb
                 onKeyEvent = { ev ->
-                    when {
-                        ev.key == Key.ENTER -> { cb(); true }
-                        ev.key == Key.CHAR && ev.char == ' ' && !ev.ctrl && !ev.alt -> { cb(); true }
-                        else -> false
+                    if (InteractiveWidgetOps.isActivate(ev)) {
+                        cb()
+                        true
+                    } else {
+                        false
                     }
                 }
             }

@@ -137,9 +137,10 @@ class AnsiKeyDecoder {
             params.size == 1 -> params[0] to 1
             else -> params[0] to params[1]
         }
-        val ctrl = (modParam - 1) and 0b100 != 0
-        val alt = (modParam - 1) and 0b010 != 0
-        val shift = (modParam - 1) and 0b001 != 0
+        val normalizedModParam = modParam.takeIf { it > 0 } ?: 1
+        val ctrl = (normalizedModParam - 1) and 0b100 != 0
+        val alt = (normalizedModParam - 1) and 0b010 != 0
+        val shift = (normalizedModParam - 1) and 0b001 != 0
 
         val key = when (ch) {
             'A' -> Key.ARROW_UP

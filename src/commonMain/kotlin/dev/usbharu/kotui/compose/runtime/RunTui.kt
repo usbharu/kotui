@@ -154,50 +154,12 @@ fun runTui(
             renderer.render(rootNode, focusManager)
         }
 
-        fun dispatchPaste(text: String): Boolean {
-            val focused = focusManager.findFocusedNode(rootNode) ?: return false
-            if (focused.onPaste?.invoke(text) == true) return true
-            var current: TuiNode? = focused.parent
-            while (current != null) {
-                if (current.onPaste?.invoke(text) == true) return true
-                current = current.parent
-            }
-            return false
-        }
-
-        fun dispatchKey(event: KeyEvent): Boolean {
-            if (event.key == Key.TAB) {
-                focusManager.focusNext(rootNode)
-                keyEventState.value = null
-                return true
-            }
-
-            val focusedNode = focusManager.findFocusedNode(rootNode)
-            if (focusedNode?.onKeyEvent?.invoke(event) == true) {
-                keyEventState.value = null
-                return true
-            }
-            if (focusedNode != null) {
-                var current = focusedNode.parent
-                while (current != null) {
-                    if (current.onKeyEvent?.invoke(event) == true) {
-                        keyEventState.value = null
-                        return true
-                    }
-                    current = current.parent
-                }
-            }
-
-            keyEventState.value = event
-            return false
-        }
-
-        fun dispatchEvent(event: InputEvent) {
-            when (event) {
-                is KeyEvent -> dispatchKey(event)
-                is PasteEvent -> dispatchPaste(event.text)
-            }
-        }
+        val eventDispatcher = TuiEventDispatcher(
+            rootNode = rootNode,
+            focusManager = focusManager,
+            publishUnhandledKey = { event -> keyEventState.value = event },
+            clearHandledKey = { keyEventState.value = null },
+        )
 
         // Pump terminal input on a background dispatcher so the main render
         // loop can also be woken by timers (e.g. animations) without waiting
@@ -246,7 +208,7 @@ fun runTui(
                     }
                 }
             }
-            event?.let { dispatchEvent(it) }
+            event?.let { eventDispatcher.dispatchEvent(it) }
             if (!running) break
 
             // Pick up any state writes from the wait window, then drive a frame.

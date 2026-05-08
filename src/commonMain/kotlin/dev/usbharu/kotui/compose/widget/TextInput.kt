@@ -30,6 +30,7 @@ fun TextInput(
     modifier: Modifier = Modifier,
     onSubmit: (() -> Unit)? = null,
     enableEditing: Boolean = true,
+    decoration: TextInputDecoration = TextInputDecoration.Default,
     editingFeatures: TextEditingFeatures = TextEditingFeatures.Default,
     inputValidator: TextInputValidator = TextInputValidator.AllowAny,
     completionCandidates: List<String> = emptyList(),
@@ -108,6 +109,12 @@ fun TextInput(
         value = value,
         dismissedForValue = effectiveDismissedForValue,
     )
+    val bodyStyles = resolveTextInputStyles(
+        enableEditing = enableEditing,
+        decoration = decoration,
+        modifierStyle = modifierValues.style,
+        modifierFocusedStyle = modifierValues.focusedStyle,
+    )
 
     SideEffect {
         if (safeCursor != cursorState.value) cursorState.value = safeCursor
@@ -157,8 +164,8 @@ fun TextInput(
                     set(focusId) { this.focusId = it }
                     set(cursorPosition) { cursorCol = it }
                     set(highlights) { textHighlights = it }
-                    set(modifierValues.style) { this.style = it }
-                    set(modifierValues.focusedStyle) { this.focusedStyle = it }
+                    set(bodyStyles.style) { this.style = it }
+                    set(bodyStyles.focusedStyle) { this.focusedStyle = it }
                     set(
                         TextInputBindings(
                             value = value,

@@ -8,11 +8,8 @@ import dev.usbharu.kotui.compose.modifier.Modifier
 import dev.usbharu.kotui.compose.modifier.style
 import dev.usbharu.kotui.compose.node.LayoutPolicy
 import dev.usbharu.kotui.compose.node.TuiNode
-import dev.usbharu.kotui.compose.runtime.Key
 import dev.usbharu.kotui.compose.runtime.KeyEvent
 import dev.usbharu.kotui.compose.runtime.LocalFocusManager
-import dev.usbharu.kotui.core.Style
-import dev.usbharu.kotui.utils.Ansi
 
 @Composable
 fun <T> RadioGroup(
@@ -30,19 +27,9 @@ fun <T> RadioGroup(
 
     val keyHandler: (KeyEvent) -> Boolean = handler@{ ev ->
         if (options.isEmpty()) return@handler false
-        val last = options.lastIndex
-        when {
-            ev.key == Key.ARROW_UP -> { onSelectedChange(options[(selectedIdx - 1).coerceAtLeast(0)]); true }
-            ev.key == Key.ARROW_DOWN -> { onSelectedChange(options[(selectedIdx + 1).coerceAtMost(last)]); true }
-            ev.key == Key.HOME -> { onSelectedChange(options[0]); true }
-            ev.key == Key.END -> { onSelectedChange(options[last]); true }
-            ev.key == Key.CHAR && !ev.ctrl && !ev.alt -> when (ev.char) {
-                'k' -> { onSelectedChange(options[(selectedIdx - 1).coerceAtLeast(0)]); true }
-                'j' -> { onSelectedChange(options[(selectedIdx + 1).coerceAtMost(last)]); true }
-                else -> false
-            }
-            else -> false
-        }
+        val moved = ListWidgetOps.radioMove(ev, selectedIdx, options.size) ?: return@handler false
+        onSelectedChange(options[moved])
+        true
     }
 
     ComposeNode<TuiNode, TuiApplier>(
@@ -64,11 +51,9 @@ fun <T> RadioGroup(
             } else {
                 options.forEachIndexed { i, opt ->
                     val isCur = i == selectedIdx
-                    val prefix = if (isCur && isFocused) "▶ " else "  "
-                    val mark = if (isCur) "(●)" else "( )"
-                    val rowStyle = if (isCur && isFocused) {
-                        Style(fg = Ansi.FG_BLACK, bg = Ansi.BG_CYAN, bold = true)
-                    } else Style()
+                    val prefix = ListWidgetOps.selectedPrefix(isCur, isFocused)
+                    val mark = ListWidgetOps.radioMark(isCur)
+                    val rowStyle = ListWidgetOps.selectedStyle(isCur, isFocused)
                     Text("$prefix$mark ${optionLabel(opt)}", Modifier.style(rowStyle))
                 }
             }
