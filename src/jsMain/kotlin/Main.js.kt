@@ -2,6 +2,8 @@ package dev.usbharu.kotui
 
 import dev.usbharu.kotui.compose.runtime.AnsiKeyDecoder
 import dev.usbharu.kotui.compose.runtime.InputEvent
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 actual fun enableRawMode() {
     val stdin = js("process.stdin")
@@ -19,7 +21,7 @@ actual fun disableRawMode() {
     stdin.pause()
 }
 
-actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
+actual suspend fun onInputEvent(onEvent: (InputEvent) -> Boolean) = suspendCancellableCoroutine { continuation ->
     val stdin = js("process.stdin")
     val decoder = AnsiKeyDecoder()
     var stopped = false
@@ -33,14 +35,19 @@ actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
         }
     }
 
+    fun stop() {
+        if (stopped) return
+        stopped = true
+        cancelFlush()
+        stdin.removeListener("data", listener)
+        if (continuation.isActive) continuation.resume(Unit)
+    }
+
     fun emit(events: List<InputEvent>) {
         if (stopped) return
         for (e in events) {
             if (!onEvent(e)) {
-                stopped = true
-                cancelFlush()
-                stdin.removeListener("data", listener)
-                stdin.pause()
+                stop()
                 return
             }
         }
@@ -63,6 +70,13 @@ actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
         }
     }
     stdin.on("data", listener)
+    continuation.invokeOnCancellation {
+        if (!stopped) {
+            stopped = true
+            cancelFlush()
+            stdin.removeListener("data", listener)
+        }
+    }
 }
 
 @Suppress("UNUSED_PARAMETER")

@@ -65,8 +65,8 @@ class RenderBuffer(width: Int, height: Int) {
         val current = cells[y][x]
         if (zIndex < current.zIndex) return
 
-        clearOverlap(x, y, placeWidth, zIndex)
         if (!canWrite(x, y, placeWidth, zIndex)) return
+        clearOverlap(x, y, placeWidth, zIndex)
 
         cells[y][x] = Cell(
             content = placeContent,

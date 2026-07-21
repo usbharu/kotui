@@ -34,6 +34,7 @@ fun Checkbox(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(displayText) { text = it }
             set(focusId) { this.focusId = it }
             set(toggle) { cb ->

@@ -41,7 +41,7 @@ actual fun disableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, originalTermios.ptr)
 }
 
-actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
+actual suspend fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
     val decoder = AnsiKeyDecoder()
     val utf8 = Utf8ByteDecoder()
 

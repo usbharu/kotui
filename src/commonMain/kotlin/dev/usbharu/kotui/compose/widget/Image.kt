@@ -60,6 +60,7 @@ fun Image(image: TerminalImage, modifier: Modifier = Modifier) {
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(image) {
                 this.image = it
                 this.preferredWidth = it.cellWidth

@@ -14,6 +14,7 @@ fun Divider(char: Char = '─', modifier: Modifier = Modifier) {
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("Divider").apply { layoutPolicy = LayoutPolicy.LEAF; preferredHeight = 1 } },
         update = {
+            reconcile { beginModifierUpdate() }
             set(char) { fillChar = it }
             reconcile { applyModifier(modifier) }
         }

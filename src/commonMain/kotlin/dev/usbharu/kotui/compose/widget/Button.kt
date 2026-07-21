@@ -20,6 +20,7 @@ fun Button(label: String, modifier: Modifier = Modifier, onClick: () -> Unit = {
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("Button").apply { layoutPolicy = LayoutPolicy.LEAF; preferredHeight = 1; focusable = true } },
         update = {
+            reconcile { beginModifierUpdate() }
             set(displayText) { text = it }
             set(focusId) { this.focusId = it }
             set(onClick) { callback ->

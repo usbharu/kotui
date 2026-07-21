@@ -41,6 +41,21 @@ import kotlinx.coroutines.yield
 private const val ACTIVE_FRAME_INTERVAL_MS = 16L
 private const val IDLE_FRAME_INTERVAL_MS = 50L
 
+internal suspend fun runInputPump(
+    read: suspend ((InputEvent) -> Boolean) -> Unit,
+    isRunning: () -> Boolean,
+    emit: (InputEvent) -> Unit,
+): Result<Unit> = runCatching {
+    read { event ->
+        if (!isRunning()) {
+            false
+        } else {
+            emit(event)
+            isRunning()
+        }
+    }
+}
+
 /**
  * @param exitOnQuit When true (default) the process is terminated via [forceExit] once
  *   the TUI loop ends. This is required for standalone TUI binaries because the platform
@@ -82,6 +97,7 @@ fun runTui(
     // DROP_OLDEST favours responsiveness over completeness for key floods.
     val inputChannel = Channel<InputEvent>(capacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val resizeChannel = Channel<TerminalSize>(Channel.CONFLATED)
+    val inputCompletion = Channel<Result<Unit>>(capacity = 1)
 
     var running = true
     val quit: () -> Unit = { running = false }
@@ -97,6 +113,7 @@ fun runTui(
         resizeWatcher?.close()
         inputChannel.close()
         resizeChannel.close()
+        inputCompletion.close()
         if (SixelSupport.cached?.kittySupported == true) {
             print(Kitty.DELETE_ALL)
         }
@@ -174,11 +191,12 @@ fun runTui(
         // loop can also be woken by timers (e.g. animations) without waiting
         // for a keypress.
         inputJob = scope.launch(Dispatchers.Default) {
-            onInputEvent { event ->
-                if (!running) return@onInputEvent false
-                inputChannel.trySend(event)
-                running
-            }
+            val result = runInputPump(
+                read = ::onInputEvent,
+                isRunning = { running },
+                emit = { inputChannel.trySend(it) },
+            )
+            inputCompletion.trySend(result)
         }
 
         // Watch for terminal resize. Platform actuals pick the best mechanism
@@ -214,6 +232,10 @@ fun runTui(
                         currentHeight = size.rows
                         renderer.resize(currentWidth, currentHeight)
                         resized = true
+                    }
+                    inputCompletion.onReceive { result ->
+                        result.getOrThrow()
+                        running = false
                     }
                 }
             }

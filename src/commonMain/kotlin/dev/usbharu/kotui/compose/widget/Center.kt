@@ -11,7 +11,10 @@ import dev.usbharu.kotui.compose.node.TuiNode
 fun Center(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("Center").apply { layoutPolicy = LayoutPolicy.CENTER } },
-        update = { reconcile { applyModifier(modifier) } },
+        update = {
+            reconcile { beginModifierUpdate() }
+            reconcile { applyModifier(modifier) }
+        },
         content = content
     )
 }

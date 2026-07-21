@@ -11,6 +11,9 @@ import dev.usbharu.kotui.compose.node.TuiNode
 fun Spacer(modifier: Modifier = Modifier) {
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("Spacer").apply { layoutPolicy = LayoutPolicy.LEAF } },
-        update = { reconcile { applyModifier(modifier) } }
+        update = {
+            reconcile { beginModifierUpdate() }
+            reconcile { applyModifier(modifier) }
+        }
     )
 }

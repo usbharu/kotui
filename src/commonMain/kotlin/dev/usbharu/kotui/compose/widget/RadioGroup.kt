@@ -40,6 +40,7 @@ fun <T> RadioGroup(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(focusId) { this.focusId = it }
             set(options.size) { preferredHeight = it.coerceAtLeast(1) }
             set(keyHandler) { onKeyEvent = it }

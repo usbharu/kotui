@@ -12,6 +12,7 @@ fun Panel(title: String = "", modifier: Modifier = Modifier, content: @Composabl
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("Panel").apply { layoutPolicy = LayoutPolicy.COLUMN; drawBorder = true } },
         update = {
+            reconcile { beginModifierUpdate() }
             set(title) { borderTitle = it }
             reconcile { applyModifier(modifier) }
         },

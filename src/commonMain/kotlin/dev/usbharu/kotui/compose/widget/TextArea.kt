@@ -67,6 +67,7 @@ fun TextArea(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(focusId) { this.focusId = it }
             set(cursorRow) { this.cursorRow = it }
             set(cursorCol) { this.cursorCol = it }

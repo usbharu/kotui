@@ -63,6 +63,7 @@ fun <T> SelectableList(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(focusId) { this.focusId = it }
             set(viewport.rows) { preferredHeight = it }
             set(keyHandler) { onKeyEvent = it }
@@ -135,6 +136,7 @@ fun <T> MultiSelectList(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(focusId) { this.focusId = it }
             set(viewport.rows) { preferredHeight = it }
             set(keyHandler) { onKeyEvent = it }

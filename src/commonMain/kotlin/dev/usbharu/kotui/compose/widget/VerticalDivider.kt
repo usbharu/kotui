@@ -22,6 +22,7 @@ fun VerticalDivider(char: Char = '│', modifier: Modifier = Modifier) {
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("VerticalDivider").apply { layoutPolicy = LayoutPolicy.LEAF; preferredWidth = 1 } },
         update = {
+            reconcile { beginModifierUpdate() }
             set(char) { fillChar = it }
             set(charWidth) { preferredWidth = it }
             reconcile { applyModifier(modifier) }

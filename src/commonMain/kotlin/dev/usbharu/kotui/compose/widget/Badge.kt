@@ -26,6 +26,7 @@ fun Badge(label: String, modifier: Modifier = Modifier) {
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(rendered) { text = it }
             set(width) { preferredWidth = it }
             reconcile { applyModifier(modifier) }

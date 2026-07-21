@@ -20,6 +20,7 @@ fun Column(
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("Column").apply { layoutPolicy = LayoutPolicy.COLUMN } },
         update = {
+            reconcile { beginModifierUpdate() }
             set(gap) { layoutGap = it }
             set(justifyContent) { this.justifyContent = it }
             set(alignItems) { this.alignItems = it }

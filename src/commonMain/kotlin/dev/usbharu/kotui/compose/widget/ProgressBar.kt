@@ -51,6 +51,7 @@ fun ProgressBar(
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("ProgressBar").apply { layoutPolicy = LayoutPolicy.LEAF; preferredHeight = 1 } },
         update = {
+            reconcile { beginModifierUpdate() }
             set(rendered) { text = it }
             set(intrinsicWidth) { preferredWidth = it }
             reconcile { applyModifier(modifier) }

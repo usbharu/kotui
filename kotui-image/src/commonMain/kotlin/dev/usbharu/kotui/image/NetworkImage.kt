@@ -151,6 +151,7 @@ private fun FallbackBlock(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(widthCells) { this.preferredWidth = it }
             set(heightCells) { this.preferredHeight = it }
             set(text) { this.text = it }

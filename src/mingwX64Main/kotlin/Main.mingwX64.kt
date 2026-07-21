@@ -46,7 +46,7 @@ actual fun disableRawMode() {
     hStdin = null
 }
 
-actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
+actual suspend fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
     val handle = GetStdHandle(STD_INPUT_HANDLE)
     if (handle == null || handle == INVALID_HANDLE_VALUE) {
         throw IllegalStateException("kotui: console input handle became unavailable.")

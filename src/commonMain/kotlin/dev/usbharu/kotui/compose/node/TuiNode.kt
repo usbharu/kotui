@@ -14,16 +14,23 @@ data class TextHighlight(val startCol: Int, val endCol: Int, val style: Style)
 
 class TuiNode(val tag: String = "Node") {
     private data class ModifierSnapshot(
-        val preferredWidth: Int?, val preferredHeight: Int?,
+        val layoutPolicy: LayoutPolicy, val bounds: Rect, val hasExplicitOffset: Boolean,
+        val preferredWidth: Int?, val preferredHeight: Int?, val layoutGap: Int,
+        val flexGrow: Float, val flexBasis: Int?,
+        val justifyContent: JustifyContent, val alignItems: AlignItems,
         val style: Style, val focusedStyle: Style?,
-        val focusable: Boolean, val focusScope: Boolean,
-        val zIndex: Int, val layoutGap: Int, val flexGrow: Float, val flexBasis: Int?,
-        val x: Int, val y: Int, val hasExplicitOffset: Boolean,
-        val onKeyEvent: ((KeyEvent) -> Boolean)?,
+        val text: String?, val fillChar: Char?, val zIndex: Int,
+        val drawBorder: Boolean, val borderTitle: String?,
+        val focusable: Boolean, val focusScope: Boolean, val focusId: Int,
+        val onKeyEvent: ((KeyEvent) -> Boolean)?, val onPaste: ((String) -> Boolean)?,
+        val onActivate: (() -> Unit)?, val cursorCol: Int?, val cursorRow: Int?,
+        val textHighlights: List<TextHighlight>?,
+        val image: dev.usbharu.kotui.compose.widget.TerminalImage?,
     )
 
     private var modifierBase: ModifierSnapshot? = null
     private var modifierApplied: ModifierSnapshot? = null
+    private var modifierUpdatePrepared = false
     var parent: TuiNode? = null
         internal set
     private val mutableChildren: MutableList<TuiNode> = mutableListOf()
@@ -82,41 +89,94 @@ class TuiNode(val tag: String = "Node") {
     var image: dev.usbharu.kotui.compose.widget.TerminalImage? = null
 
     fun applyModifier(modifier: Modifier) {
-        restorePreviousModifier()
+        if (!modifierUpdatePrepared) restorePreviousModifierPreservingChanges()
         val base = modifierSnapshot()
-        modifier.foldIn(Unit) { _, element -> element.apply(this) }
-        val applied = modifierSnapshot()
         modifierBase = base
-        modifierApplied = applied
+        modifierUpdatePrepared = false
+        modifier.foldIn(Unit) { _, element -> element.apply(this) }
+        modifierApplied = modifierSnapshot()
     }
 
     private fun modifierSnapshot() = ModifierSnapshot(
-        preferredWidth, preferredHeight, style, focusedStyle, focusable, focusScope,
-        zIndex, layoutGap, flexGrow, flexBasis, bounds.x, bounds.y, hasExplicitOffset, onKeyEvent,
+        layoutPolicy, bounds, hasExplicitOffset,
+        preferredWidth, preferredHeight, layoutGap, flexGrow, flexBasis, justifyContent, alignItems,
+        style, focusedStyle, text, fillChar, zIndex, drawBorder, borderTitle,
+        focusable, focusScope, focusId, onKeyEvent, onPaste, onActivate,
+        cursorCol, cursorRow, textHighlights, image,
     )
 
-    private fun restorePreviousModifier() {
-        val base = modifierBase ?: return
-        val applied = modifierApplied ?: return
-        if (preferredWidth == applied.preferredWidth) preferredWidth = base.preferredWidth
-        if (preferredHeight == applied.preferredHeight) preferredHeight = base.preferredHeight
-        if (style == applied.style) style = base.style
-        if (focusedStyle == applied.focusedStyle) focusedStyle = base.focusedStyle
-        if (focusable == applied.focusable) focusable = base.focusable
-        if (focusScope == applied.focusScope) focusScope = base.focusScope
-        if (zIndex == applied.zIndex) zIndex = base.zIndex
-        if (layoutGap == applied.layoutGap) layoutGap = base.layoutGap
-        if (flexGrow == applied.flexGrow) flexGrow = base.flexGrow
-        if (flexBasis == applied.flexBasis) flexBasis = base.flexBasis
-        var restoredX = bounds.x
-        var restoredY = bounds.y
-        if (bounds.x == applied.x) restoredX = base.x
-        if (bounds.y == applied.y) restoredY = base.y
-        bounds = bounds.copy(x = restoredX, y = restoredY)
-        if (hasExplicitOffset == applied.hasExplicitOffset) hasExplicitOffset = base.hasExplicitOffset
-        if (onKeyEvent == applied.onKeyEvent) onKeyEvent = base.onKeyEvent
+    /** Restores the unmodified node state before widget setters run for a new update pass. */
+    fun beginModifierUpdate() {
+        modifierBase?.let(::restoreModifierSnapshot)
         modifierBase = null
         modifierApplied = null
+        modifierUpdatePrepared = true
+    }
+
+    private fun restorePreviousModifierPreservingChanges() {
+        val base = modifierBase ?: return
+        val applied = modifierApplied ?: return
+        val current = modifierSnapshot()
+        restoreModifierSnapshot(base)
+        if (current.layoutPolicy != applied.layoutPolicy) layoutPolicy = current.layoutPolicy
+        if (current.bounds != applied.bounds) bounds = current.bounds
+        if (current.hasExplicitOffset != applied.hasExplicitOffset) hasExplicitOffset = current.hasExplicitOffset
+        if (current.preferredWidth != applied.preferredWidth) preferredWidth = current.preferredWidth
+        if (current.preferredHeight != applied.preferredHeight) preferredHeight = current.preferredHeight
+        if (current.layoutGap != applied.layoutGap) layoutGap = current.layoutGap
+        if (current.flexGrow != applied.flexGrow) flexGrow = current.flexGrow
+        if (current.flexBasis != applied.flexBasis) flexBasis = current.flexBasis
+        if (current.justifyContent != applied.justifyContent) justifyContent = current.justifyContent
+        if (current.alignItems != applied.alignItems) alignItems = current.alignItems
+        if (current.style != applied.style) style = current.style
+        if (current.focusedStyle != applied.focusedStyle) focusedStyle = current.focusedStyle
+        if (current.text != applied.text) text = current.text
+        if (current.fillChar != applied.fillChar) fillChar = current.fillChar
+        if (current.zIndex != applied.zIndex) zIndex = current.zIndex
+        if (current.drawBorder != applied.drawBorder) drawBorder = current.drawBorder
+        if (current.borderTitle != applied.borderTitle) borderTitle = current.borderTitle
+        if (current.focusable != applied.focusable) focusable = current.focusable
+        if (current.focusScope != applied.focusScope) focusScope = current.focusScope
+        if (current.focusId != applied.focusId) focusId = current.focusId
+        if (current.onKeyEvent != applied.onKeyEvent) onKeyEvent = current.onKeyEvent
+        if (current.onPaste != applied.onPaste) onPaste = current.onPaste
+        if (current.onActivate != applied.onActivate) onActivate = current.onActivate
+        if (current.cursorCol != applied.cursorCol) cursorCol = current.cursorCol
+        if (current.cursorRow != applied.cursorRow) cursorRow = current.cursorRow
+        if (current.textHighlights != applied.textHighlights) textHighlights = current.textHighlights
+        if (current.image != applied.image) image = current.image
+        modifierBase = null
+        modifierApplied = null
+    }
+
+    private fun restoreModifierSnapshot(base: ModifierSnapshot) {
+        layoutPolicy = base.layoutPolicy
+        bounds = base.bounds
+        hasExplicitOffset = base.hasExplicitOffset
+        preferredWidth = base.preferredWidth
+        preferredHeight = base.preferredHeight
+        layoutGap = base.layoutGap
+        flexGrow = base.flexGrow
+        flexBasis = base.flexBasis
+        justifyContent = base.justifyContent
+        alignItems = base.alignItems
+        style = base.style
+        focusedStyle = base.focusedStyle
+        text = base.text
+        fillChar = base.fillChar
+        zIndex = base.zIndex
+        drawBorder = base.drawBorder
+        borderTitle = base.borderTitle
+        focusable = base.focusable
+        focusScope = base.focusScope
+        focusId = base.focusId
+        onKeyEvent = base.onKeyEvent
+        onPaste = base.onPaste
+        onActivate = base.onActivate
+        cursorCol = base.cursorCol
+        cursorRow = base.cursorRow
+        textHighlights = base.textHighlights
+        image = base.image
     }
 
     internal fun applyOffset(x: Int, y: Int) {

@@ -71,6 +71,7 @@ fun Spinner(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(display) { text = it }
             set(displayWidth) { preferredWidth = it }
             reconcile { applyModifier(modifier) }

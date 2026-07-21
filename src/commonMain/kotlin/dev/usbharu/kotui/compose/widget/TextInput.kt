@@ -148,6 +148,7 @@ fun TextInput(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             reconcile {
                 applyModifier(modifier)
                 onKeyEvent = null

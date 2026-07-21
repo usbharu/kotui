@@ -60,6 +60,7 @@ fun <T> Select(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(displayText) { text = it }
             set(focusId) { this.focusId = it }
             set(openDropdown) { cb ->

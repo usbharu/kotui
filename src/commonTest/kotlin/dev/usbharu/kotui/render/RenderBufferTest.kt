@@ -9,6 +9,19 @@ import kotlin.test.assertTrue
 
 class RenderBufferTest {
     @Test
+    fun blockedWideWriteDoesNotMutateOverlappingLowerLayerGlyph() {
+        val buf = RenderBuffer(3, 1)
+        buf.setGrapheme(0, 0, "界", 2, Style(), 0)
+        buf.set(2, 0, 'X', Style(), 10)
+
+        buf.setGrapheme(1, 0, "語", 2, Style(), 5)
+
+        assertEquals("界", buf.get(0, 0).content)
+        assertTrue(buf.get(1, 0).isContinuation)
+        assertEquals("X", buf.get(2, 0).content)
+    }
+
+    @Test
     fun negativeZContentCanPaintAnEmptyCell() {
         val buffer = RenderBuffer(1, 1)
         buffer.set(0, 0, 'x', Style(), -10)

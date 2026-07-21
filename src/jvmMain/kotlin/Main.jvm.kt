@@ -67,7 +67,7 @@ actual fun disableRawMode() {
 private const val ESC_TIMEOUT_MS = 40L
 private const val ESC_POLL_MS = 5L
 
-actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
+actual suspend fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
     val decoder = AnsiKeyDecoder()
     val utf8 = Utf8ByteDecoder()
     val input = System.`in`

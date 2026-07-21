@@ -20,6 +20,7 @@ fun Row(
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("Row").apply { layoutPolicy = LayoutPolicy.ROW } },
         update = {
+            reconcile { beginModifierUpdate() }
             set(gap) { layoutGap = it }
             set(justifyContent) { this.justifyContent = it }
             set(alignItems) { this.alignItems = it }

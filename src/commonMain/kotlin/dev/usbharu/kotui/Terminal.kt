@@ -10,7 +10,7 @@ expect fun disableRawMode()
  * paste, and invokes [onEvent] for every resulting [InputEvent]. Returning false from
  * the callback stops the loop.
  */
-expect fun onInputEvent(onEvent: (InputEvent) -> Boolean)
+expect suspend fun onInputEvent(onEvent: (InputEvent) -> Boolean)
 
 data class TerminalSize(val cols: Int, val rows: Int) {
     init {

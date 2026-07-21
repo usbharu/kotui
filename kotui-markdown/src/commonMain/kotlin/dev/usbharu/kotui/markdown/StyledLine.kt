@@ -50,6 +50,7 @@ internal fun StyledLine(
             }
         },
         update = {
+            reconcile { beginModifierUpdate() }
             set(text) { this.text = it }
             set(base) { this.style = it }
             set(hlSnapshot) { this.textHighlights = it.ifEmpty { null } }

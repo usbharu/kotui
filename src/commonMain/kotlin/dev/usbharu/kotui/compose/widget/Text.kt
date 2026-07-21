@@ -12,6 +12,7 @@ fun Text(text: String, modifier: Modifier = Modifier) {
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("Text").apply { layoutPolicy = LayoutPolicy.LEAF; preferredHeight = 1 } },
         update = {
+            reconcile { beginModifierUpdate() }
             set(text) { this.text = it }
             reconcile { applyModifier(modifier) }
         }
