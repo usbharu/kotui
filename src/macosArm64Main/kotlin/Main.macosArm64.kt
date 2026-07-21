@@ -3,6 +3,7 @@ package dev.usbharu.kotui
 
 import dev.usbharu.kotui.compose.runtime.AnsiKeyDecoder
 import dev.usbharu.kotui.compose.runtime.InputEvent
+import dev.usbharu.kotui.compose.runtime.Utf8ByteDecoder
 import kotlinx.cinterop.*
 import platform.posix.*
 
@@ -44,9 +45,15 @@ actual fun disableRawMode() {
 
 actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
     val decoder = AnsiKeyDecoder()
+    val utf8 = Utf8ByteDecoder()
 
     fun emit(events: List<InputEvent>): Boolean {
         for (e in events) if (!onEvent(e)) return false
+        return true
+    }
+
+    fun emitDecoded(text: String): Boolean {
+        for (ch in text) if (!emit(decoder.feed(ch))) return false
         return true
     }
 
@@ -54,46 +61,23 @@ actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
         val buf = alloc<ByteVar>()
         fun readByte(): Int {
             val n = read(STDIN_FILENO, buf.ptr, 1.convert())
-            if (n <= 0) return -1
+            if (n == 0L) return -1
+            if (n < 0) return if (errno == EINTR) -1 else -2
             return buf.value.toInt() and 0xFF
         }
 
         while (true) {
             val b = readByte()
+            if (b == -2) throw IllegalStateException("kotui: terminal input read failed (errno=$errno).")
             if (b < 0) {
+                if (!emitDecoded(utf8.flush())) return
                 // VTIME timeout or EOF. Flush any pending escape sequence.
                 if (decoder.hasPending()) {
                     if (!emit(decoder.flush())) return
                 }
                 continue
             }
-            val ch = decodeUtf8Char(b, ::readByte) ?: continue
-            if (!emit(decoder.feed(ch))) return
+            if (!emitDecoded(utf8.feed(b))) return
         }
     }
-}
-
-private fun decodeUtf8Char(first: Int, readByte: () -> Int): Char? {
-    if (first < 0x80) return first.toChar()
-    val len = when {
-        first and 0xE0 == 0xC0 -> 2
-        first and 0xF0 == 0xE0 -> 3
-        first and 0xF8 == 0xF0 -> 4
-        else -> 1
-    }
-    if (len == 1) return first.toChar()
-    val bytes = ByteArray(len)
-    bytes[0] = first.toByte()
-    for (i in 1 until len) {
-        // Continuation bytes follow immediately; retry briefly on timeout.
-        var next = readByte()
-        var retries = 0
-        while (next < 0 && retries < 5) {
-            next = readByte()
-            retries++
-        }
-        if (next < 0) return null
-        bytes[i] = next.toByte()
-    }
-    return bytes.decodeToString()[0]
 }

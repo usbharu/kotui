@@ -15,6 +15,7 @@ actual object SixelSupport {
     }
 
     actual fun detect(timeoutMillis: Long): TerminalCaps {
+        normalizedProbeTimeout(timeoutMillis)
         val env = detectCapsFromEnv { name ->
             val v = process.env[name]
             if (v == null || v == undefined) null else v.toString()

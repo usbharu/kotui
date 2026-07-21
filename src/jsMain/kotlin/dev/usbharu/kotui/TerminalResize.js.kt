@@ -2,8 +2,9 @@ package dev.usbharu.kotui
 
 actual fun watchTerminalResize(onResize: (TerminalSize) -> Unit): TerminalResizeWatcher {
     val stdout = js("process.stdout")
+    val tracker = TerminalSizeChangeTracker(terminalSize())
     val listener: () -> Unit = {
-        terminalSize()?.let(onResize)
+        tracker.changedTo(terminalSize())?.let(onResize)
     }
     stdout.on("resize", listener)
     return object : TerminalResizeWatcher {

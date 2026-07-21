@@ -34,7 +34,7 @@ class InteractiveWidgetCompositionTest {
     }
 
     @Test
-    fun buttonEnterActivatesButPlainSpaceDoesNot() = runTest {
+    fun buttonEnterAndPlainSpaceActivate() = runTest {
         var clicks = 0
         val session = composeWithDefaults {
             Button("Go") { clicks++ }
@@ -45,10 +45,10 @@ class InteractiveWidgetCompositionTest {
         val button = session.root.children.single()
         assertTrue(button.onKeyEvent!!.invoke(KeyEvent('\n', Key.ENTER)))
         assertEquals(1, clicks)
-        assertFalse(button.onKeyEvent!!.invoke(KeyEvent(' ', Key.CHAR)))
-        assertEquals(1, clicks)
-        button.onActivate!!.invoke()
+        assertTrue(button.onKeyEvent!!.invoke(KeyEvent(' ', Key.CHAR)))
         assertEquals(2, clicks)
+        button.onActivate!!.invoke()
+        assertEquals(3, clicks)
 
         session.dispose()
     }

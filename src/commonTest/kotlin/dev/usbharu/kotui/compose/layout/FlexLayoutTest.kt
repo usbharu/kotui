@@ -4,6 +4,10 @@ import dev.usbharu.kotui.compose.node.LayoutPolicy
 import dev.usbharu.kotui.compose.node.TuiNode
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+import dev.usbharu.kotui.compose.modifier.Modifier
+import dev.usbharu.kotui.compose.modifier.offset
 
 class FlexLayoutTest {
 
@@ -125,6 +129,63 @@ class FlexLayoutTest {
     }
 
     @Test
+    fun spaceEvenlyDistributesIntegerRemainderInsteadOfLeavingItAtEnd() {
+        val a = leaf(width = 1, height = 1)
+        val b = leaf(width = 1, height = 1)
+        val root = row(justify = JustifyContent.SpaceEvenly, children = listOf(a, b))
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 3)
+
+        val left = a.bounds.x
+        val middle = b.bounds.x - (a.bounds.x + a.bounds.width)
+        val right = 10 - (b.bounds.x + b.bounds.width)
+        assertTrue(maxOf(left, middle, right) - minOf(left, middle, right) <= 1)
+    }
+
+    @Test
+    fun aggregateBasisAndGapArithmeticDoesNotWrapNegative() {
+        val children = listOf(
+            leaf(width = Int.MAX_VALUE, height = 1),
+            leaf(width = Int.MAX_VALUE, height = 1),
+            leaf(width = 1, height = 1),
+        )
+        val root = row(gap = Int.MAX_VALUE, children = children)
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 3)
+
+        assertEquals(0, children[0].bounds.x)
+        assertEquals(Int.MAX_VALUE, children[1].bounds.x)
+        assertEquals(Int.MAX_VALUE, children[2].bounds.x)
+        assertTrue(children.all { it.bounds.width >= 0 })
+    }
+
+    @Test
+    fun overflowingBasisSumDoesNotCreatePhantomGrowSpace() {
+        val growing = leaf(width = 0, height = 1, grow = 1f)
+        val root = row(children = listOf(
+            leaf(width = Int.MAX_VALUE, height = 1),
+            leaf(width = Int.MAX_VALUE, height = 1),
+            growing,
+        ))
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 3)
+
+        assertEquals(0, growing.bounds.width)
+    }
+
+    @Test
+    fun hugeFiniteGrowWeightsStillShareSpaceProportionally() {
+        val a = leaf(height = 1, grow = Float.MAX_VALUE)
+        val b = leaf(height = 1, grow = Float.MAX_VALUE)
+        val root = row(children = listOf(a, b))
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 3)
+
+        assertEquals(5, a.bounds.width)
+        assertEquals(5, b.bounds.width)
+    }
+
+    @Test
     fun rowAlignItemsStretchMakesChildrenFillCross() {
         val a = leaf(width = 4)
         val root = row(align = AlignItems.Stretch, children = listOf(a))
@@ -201,6 +262,108 @@ class FlexLayoutTest {
     }
 
     @Test
+    fun centerUsesIntrinsicChildHeightWhenPreferredHeightIsUnset() {
+        val root = TuiNode("Center").apply {
+            layoutPolicy = LayoutPolicy.CENTER
+        }
+        val child = TuiNode("Column").apply {
+            layoutPolicy = LayoutPolicy.COLUMN
+            insertAt(0, leaf(width = 2, height = 1))
+            insertAt(1, leaf(width = 2, height = 1))
+        }
+        root.insertAt(0, child)
+
+        LayoutEngine.layout(root, screenWidth = 10, screenHeight = 6)
+
+        assertEquals(2, child.bounds.height)
+        assertEquals(2, child.bounds.y)
+        assertEquals(2, child.children[0].bounds.y)
+        assertEquals(3, child.children[1].bounds.y)
+    }
+
+    @Test
+    fun boxRepositionsChildWhenParentMovesBetweenLayouts() {
+        val root = TuiNode("root").apply {
+            layoutPolicy = LayoutPolicy.ROW
+            justifyContent = JustifyContent.End
+        }
+        val box = TuiNode("box").apply {
+            layoutPolicy = LayoutPolicy.BOX
+            preferredWidth = 3
+            preferredHeight = 2
+        }
+        val child = leaf(width = 1, height = 1)
+        box.insertAt(0, child)
+        root.insertAt(0, box)
+        LayoutEngine.layout(root, 10, 5)
+        assertEquals(7, child.bounds.x)
+
+        LayoutEngine.layout(root, 8, 5)
+
+        assertEquals(5, child.bounds.x)
+        assertEquals(0, child.bounds.y)
+    }
+
+    @Test
+    fun removingOffsetModifierReturnsBoxChildToParentOrigin() {
+        val root = TuiNode("root").apply {
+            layoutPolicy = LayoutPolicy.BOX
+            bounds = dev.usbharu.kotui.core.Rect(2, 3, 5, 5)
+        }
+        val child = leaf(width = 1, height = 1)
+        child.applyModifier(Modifier.offset(8, 9))
+        root.insertAt(0, child)
+        LayoutEngine.layout(root, 5, 5)
+        assertEquals(8, child.bounds.x)
+
+        child.applyModifier(Modifier)
+        LayoutEngine.layout(root, 5, 5)
+
+        assertEquals(0, child.bounds.x)
+        assertEquals(0, child.bounds.y)
+    }
+
+    @Test
+    fun layoutRejectsNegativeScreenDimensions() {
+        val root = TuiNode("root")
+
+        assertFailsWith<IllegalArgumentException> { LayoutEngine.layout(root, -1, 1) }
+        assertFailsWith<IllegalArgumentException> { LayoutEngine.layout(root, 1, -1) }
+    }
+
+    @Test
+    fun layoutRejectsNegativeDirectDimensionsAndSpacing() {
+        val invalidNodes = listOf(
+            TuiNode("width").apply { preferredWidth = -1 },
+            TuiNode("height").apply { preferredHeight = -1 },
+            TuiNode("gap").apply { layoutGap = -1 },
+            TuiNode("basis").apply { flexBasis = -1 },
+        )
+
+        invalidNodes.forEach { node ->
+            assertFailsWith<IllegalArgumentException>(node.tag) { LayoutEngine.layout(node, 1, 1) }
+        }
+    }
+
+    @Test
+    fun layoutRejectsNonFiniteOrNegativeDirectGrowValues() {
+        listOf(-1f, Float.NaN, Float.POSITIVE_INFINITY).forEach { grow ->
+            val root = TuiNode("root").apply { flexGrow = grow }
+            assertFailsWith<IllegalArgumentException>(grow.toString()) { LayoutEngine.layout(root, 1, 1) }
+        }
+    }
+
+    @Test
+    fun layoutValidatesInvalidDescendantsBeforeMutatingRootBounds() {
+        val root = TuiNode("root").apply { bounds = dev.usbharu.kotui.core.Rect(7, 8, 9, 10) }
+        root.insertAt(0, TuiNode("bad").apply { preferredWidth = -1 })
+
+        assertFailsWith<IllegalArgumentException> { LayoutEngine.layout(root, 2, 2) }
+
+        assertEquals(dev.usbharu.kotui.core.Rect(7, 8, 9, 10), root.bounds)
+    }
+
+    @Test
     fun emptyRowKeepsRootBounds() {
         val root = row(children = emptyList())
 
@@ -251,7 +414,7 @@ class FlexLayoutTest {
     }
 
     @Test
-    fun boxKeepsExistingChildOffsetAndAppliesPreferredSize() {
+    fun boxResetsStaleChildPositionAndAppliesPreferredSize() {
         val child = leaf(width = 3, height = 2).apply {
             bounds = dev.usbharu.kotui.core.Rect(4, 5, 99, 99)
         }
@@ -262,14 +425,14 @@ class FlexLayoutTest {
 
         LayoutEngine.layout(root, screenWidth = 20, screenHeight = 10)
 
-        assertEquals(4, child.bounds.x)
-        assertEquals(5, child.bounds.y)
+        assertEquals(0, child.bounds.x)
+        assertEquals(0, child.bounds.y)
         assertEquals(3, child.bounds.width)
         assertEquals(2, child.bounds.height)
     }
 
     @Test
-    fun centerDefaultsChildHeightToOneWhenPreferredHeightIsMissing() {
+    fun centerKeepsLeafHeightZeroWhenPreferredHeightIsMissing() {
         val child = leaf(width = 4)
         val root = TuiNode("Center").apply {
             layoutPolicy = LayoutPolicy.CENTER
@@ -281,7 +444,7 @@ class FlexLayoutTest {
         assertEquals(3, child.bounds.x)
         assertEquals(2, child.bounds.y)
         assertEquals(4, child.bounds.width)
-        assertEquals(1, child.bounds.height)
+        assertEquals(0, child.bounds.height)
     }
 
     @Test
@@ -460,4 +623,5 @@ class FlexLayoutTest {
         assertEquals(4, box.bounds.height)
         assertEquals(3, center.bounds.height)
     }
+
 }

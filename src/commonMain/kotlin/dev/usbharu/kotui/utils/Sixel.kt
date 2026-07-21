@@ -14,15 +14,18 @@ object Sixel {
 
     /**
      * Encodes [rgba] (row-major, 4 bytes per pixel) of size [width] × [height]
-     * into a sixel escape string. The alpha channel is ignored.
+     * into a sixel escape string. Pixels with alpha below 128 are transparent.
      *
      * If the image contains no more than [maxColors] distinct colours the exact
      * palette is used; otherwise a uniform 3/3/2-bit RGB quantization is applied.
      */
     fun encode(rgba: ByteArray, width: Int, height: Int, maxColors: Int = 256): String {
         require(width > 0 && height > 0) { "width and height must be positive" }
-        require(rgba.size >= width * height * 4) { "rgba buffer too small: ${rgba.size} < ${width * height * 4}" }
-        require(maxColors in 2..256) { "maxColors must be in 2..256" }
+        val pixelCount = width.toLong() * height.toLong()
+        require(pixelCount <= Int.MAX_VALUE / 4L) { "image is too large" }
+        val requiredBytes = pixelCount * 4L
+        require(rgba.size.toLong() >= requiredBytes) { "rgba buffer too small: ${rgba.size} < $requiredBytes" }
+        require(maxColors in 1..256) { "maxColors must be in 1..256" }
 
         val indices = IntArray(width * height)
         val palette = quantize(rgba, width, height, maxColors, indices)
@@ -31,11 +34,20 @@ object Sixel {
 
     /**
      * Encodes a pre-quantized image. [pixels] holds palette indices (row-major),
-     * [palette] holds packed 0xRRGGBB values, one per index.
+     * [palette] holds packed 0xRRGGBB values, one per index. Index -1 is transparent.
      */
     fun encodeIndexed(pixels: IntArray, width: Int, height: Int, palette: IntArray): String {
-        require(pixels.size >= width * height) { "pixels buffer too small" }
-        require(palette.isNotEmpty()) { "palette must not be empty" }
+        require(width > 0 && height > 0) { "width and height must be positive" }
+        val pixelCount = width.toLong() * height.toLong()
+        require(pixelCount <= Int.MAX_VALUE) { "image is too large" }
+        require(pixels.size.toLong() >= pixelCount) { "pixels buffer too small" }
+        require(palette.isNotEmpty() || (0 until pixelCount.toInt()).all { pixels[it] == -1 }) {
+            "palette may be empty only for a fully transparent image"
+        }
+        require(palette.size <= 256) { "palette must contain at most 256 colors" }
+        for (i in 0 until pixelCount.toInt()) {
+            require(pixels[i] == -1 || pixels[i] in palette.indices) { "palette index out of range at pixel $i" }
+        }
 
         val out = StringBuilder()
         out.append(DCS_Q)
@@ -134,6 +146,7 @@ object Sixel {
             val g = rgba[base + 1].toInt() and 0xFF
             val b = rgba[base + 2].toInt() and 0xFF
             packed[i] = (r shl 16) or (g shl 8) or b
+            if ((rgba[base + 3].toInt() and 0xFF) < 128) outIndices[i] = -1
         }
 
         // Try exact palette first (cheap when the image has few colours).
@@ -142,6 +155,7 @@ object Sixel {
         var exactCount = 0
         var overflow = false
         for (i in 0 until n) {
+            if (outIndices[i] == -1) continue
             val rgb = packed[i]
             var idx = exactLookup[rgb]
             if (idx == null) {
@@ -161,29 +175,42 @@ object Sixel {
             return exactPalette.copyOf(exactCount)
         }
 
-        // Uniform 3-3-2 quantization (256 buckets). We only populate buckets
-        // that actually appear and renumber them compactly so the palette is
-        // as short as possible even under this branch.
-        val bucketToIndex = IntArray(256) { -1 }
-        val palette = IntArray(256)
+        // Uniform quantization whose bucket count never exceeds maxColors.
+        var rBits = 0
+        var gBits = 0
+        var bBits = 0
+        while ((1 shl (rBits + gBits + bBits + 1)) <= maxColors) {
+            when {
+                gBits <= rBits && gBits < 3 -> gBits++
+                rBits < 3 -> rBits++
+                bBits < 2 -> bBits++
+                else -> break
+            }
+        }
+        val rLevels = 1 shl rBits
+        val gLevels = 1 shl gBits
+        val bLevels = 1 shl bBits
+        val bucketCount = rLevels * gLevels * bLevels
+        val bucketToIndex = IntArray(bucketCount) { -1 }
+        val palette = IntArray(bucketCount)
         var count = 0
         for (i in 0 until n) {
+            if (outIndices[i] == -1) continue
             val rgb = packed[i]
             val r = (rgb ushr 16) and 0xFF
             val g = (rgb ushr 8) and 0xFF
             val b = rgb and 0xFF
-            val bucket = ((r and 0xE0)) or ((g and 0xE0) ushr 3) or ((b and 0xC0) ushr 6)
+            val rq = r * rLevels / 256
+            val gq = g * gLevels / 256
+            val bq = b * bLevels / 256
+            val bucket = (rq * gLevels + gq) * bLevels + bq
             var idx = bucketToIndex[bucket]
             if (idx == -1) {
                 idx = count
                 bucketToIndex[bucket] = idx
-                val br = bucket and 0xE0
-                val bg = (bucket and 0x1C) shl 3
-                val bb = (bucket and 0x03) shl 6
-                // Centre each bucket on its midpoint for better average colour.
-                val cr = (br or 0x10).coerceAtMost(0xFF)
-                val cg = (bg or 0x10).coerceAtMost(0xFF)
-                val cb = (bb or 0x20).coerceAtMost(0xFF)
+                val cr = ((rq + 0.5) * 256 / rLevels).toInt().coerceAtMost(255)
+                val cg = ((gq + 0.5) * 256 / gLevels).toInt().coerceAtMost(255)
+                val cb = ((bq + 0.5) * 256 / bLevels).toInt().coerceAtMost(255)
                 palette[count] = (cr shl 16) or (cg shl 8) or cb
                 count++
             }

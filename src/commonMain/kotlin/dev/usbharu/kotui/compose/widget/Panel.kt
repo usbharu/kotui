@@ -13,7 +13,7 @@ fun Panel(title: String = "", modifier: Modifier = Modifier, content: @Composabl
         factory = { TuiNode("Panel").apply { layoutPolicy = LayoutPolicy.COLUMN; drawBorder = true } },
         update = {
             set(title) { borderTitle = it }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         },
         content = content
     )

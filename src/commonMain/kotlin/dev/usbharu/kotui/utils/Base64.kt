@@ -6,7 +6,7 @@ internal object Base64 {
     fun encode(text: String): String = encode(text.encodeToByteArray())
 
     fun encode(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size - offset): String {
-        require(offset >= 0 && length >= 0 && offset + length <= bytes.size)
+        require(offset in 0..bytes.size && length >= 0 && length <= bytes.size - offset)
         val out = StringBuilder((length + 2) / 3 * 4)
         var i = offset
         val end = offset + length

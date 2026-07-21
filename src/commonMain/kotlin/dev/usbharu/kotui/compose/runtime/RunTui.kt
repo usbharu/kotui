@@ -88,6 +88,9 @@ fun runTui(
 
     var resizeWatcher: TerminalResizeWatcher? = null
     var cleanedUp = false
+    var rawModeEnabled = false
+    var alternateScreenEnabled = false
+    var bracketedPasteEnabled = false
     fun cleanup() {
         if (cleanedUp) return
         cleanedUp = true
@@ -97,13 +100,16 @@ fun runTui(
         if (SixelSupport.cached?.kittySupported == true) {
             print(Kitty.DELETE_ALL)
         }
-        print(Ansi.BRACKETED_PASTE_OFF)
+        if (bracketedPasteEnabled) print(Ansi.BRACKETED_PASTE_OFF)
         print(Ansi.CURSOR_SHOW)
-        print(Ansi.ALTERNATE_SCREEN_OFF)
-        disableRawMode()
+        if (alternateScreenEnabled) print(Ansi.ALTERNATE_SCREEN_OFF)
+        if (rawModeEnabled) disableRawMode()
     }
 
+    var mainLoopIsAsync = false
+    try {
     enableRawMode()
+    rawModeEnabled = true
     // Probe terminal capabilities once before the main input loop starts so DA1
     // / CSI 16 t responses are not consumed as key events. If the caller has
     // already primed the cache (e.g. tests), the previous value is kept.
@@ -111,15 +117,16 @@ fun runTui(
         SixelSupport.detect()
     }
     print(Ansi.ALTERNATE_SCREEN_ON)
+    alternateScreenEnabled = true
     print(Ansi.CURSOR_HIDE)
     print(Ansi.BRACKETED_PASTE_ON)
+    bracketedPasteEnabled = true
     if (fullscreen) {
         print(Ansi.CLEAR_SCREEN)
         print(Ansi.CURSOR_HOME)
     }
 
-    try {
-    runMainLoop {
+    val completedSynchronously = runMainLoop(block = {
         // Use an independent Job so cancelling our scope does NOT cascade up to
         // the `runBlocking` coroutine (which would throw JobCancellationException
         // out of `runMainLoop`).
@@ -137,6 +144,8 @@ fun runTui(
         }
 
         val composition = Composition(TuiApplier(rootNode), recomposer)
+        var inputJob: Job? = null
+        try {
         composition.setContent {
             CompositionLocalProvider(
                 LocalFocusManager provides focusManager,
@@ -164,7 +173,7 @@ fun runTui(
         // Pump terminal input on a background dispatcher so the main render
         // loop can also be woken by timers (e.g. animations) without waiting
         // for a keypress.
-        val inputJob = scope.launch(Dispatchers.Default) {
+        inputJob = scope.launch(Dispatchers.Default) {
             onInputEvent { event ->
                 if (!running) return@onInputEvent false
                 inputChannel.trySend(event)
@@ -222,20 +231,27 @@ fun runTui(
             }
         }
 
-        try {
-            composition.dispose()
-        } catch (_: Throwable) {
+        } finally {
+            try {
+                composition.dispose()
+            } catch (_: Throwable) {
+            }
+            try {
+                recomposer.cancel()
+            } catch (_: Throwable) {
+            }
+            inputJob?.cancel()
+            scopeJob.cancel()
         }
-        try {
-            recomposer.cancel()
-        } catch (_: Throwable) {
-        }
-        inputJob.cancel()
-        scopeJob.cancel()
-    }
-    } finally {
+    }, onComplete = { failure ->
         cleanup()
+        if (exitOnQuit) forceExit(if (failure == null) 0 else 1)
+    })
+    mainLoopIsAsync = !completedSynchronously
+    } finally {
+        if (!mainLoopIsAsync) cleanup()
     }
+    if (mainLoopIsAsync) return
     if (exitOnQuit) {
         // The background worker running `onInputEvent` blocks in a native read()
         // that cannot be interrupted via coroutine cancellation. Force process

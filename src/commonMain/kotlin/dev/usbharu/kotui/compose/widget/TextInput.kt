@@ -44,6 +44,7 @@ fun TextInput(
     completionDisplay: (String) -> String = { it },
     completionTransform: (String, String) -> String = { _, candidate -> candidate },
 ) {
+    requireSingleLineValue(value)
     val focusManager = LocalFocusManager.current
     val clipboard = LocalClipboard.current
     val focusId = remember { focusManager.allocateFocusId() }
@@ -147,8 +148,8 @@ fun TextInput(
             }
         },
         update = {
-            set(modifier) {
-                applyModifier(it)
+            reconcile {
+                applyModifier(modifier)
                 onKeyEvent = null
                 onPaste = null
             }
@@ -193,7 +194,7 @@ fun TextInput(
                         onKeyEvent = b.modifierKeyHandler ?: { event -> handleKey(b, event) }
                         onPaste = { text ->
                             if (b.enableEditing && b.features.clipboard) {
-                                insertText(b, text)
+                                insertText(b, normalizeSingleLinePaste(text))
                                 true
                             } else false
                         }
@@ -297,12 +298,13 @@ private fun moveCursor(b: TextInputBindings, newPos: Int, extendSelection: Boole
 }
 
 private fun insertText(b: TextInputBindings, insert: String): Boolean {
+    val normalizedInsert = normalizeSingleLinePaste(insert)
     val sel = currentSelection(b)
     val (newValue, newCursor) = TextEditOps.replaceIfValid(
         value = b.value,
         cursor = b.cursor.value,
         selection = sel,
-        insert = insert,
+        insert = normalizedInsert,
         inputValidator = b.inputValidator,
     ) ?: return false
     clearSelection(b)
@@ -314,13 +316,10 @@ private fun insertText(b: TextInputBindings, insert: String): Boolean {
 private fun acceptCompletion(b: TextInputBindings) {
     if (!b.completionWindow.isVisible) return
     val candidate = b.completionWindow.items[b.completionWindow.selectedIndex]
-    val commit = commitCompletionValueIfValid(
-        currentValue = b.value,
-        candidate = candidate,
-        transform = b.completionTransform,
-        inputValidator = b.inputValidator,
-    ) ?: return
-    val replacement = commit.replacement
+    val replacement = normalizeSingleLinePaste(
+        applyCompletionValue(b.value, candidate, b.completionTransform),
+    )
+    if (!b.inputValidator.isValid(replacement)) return
     clearSelection(b)
     b.cursor.value = replacement.length
     b.completionDismissedForValue.value = replacement

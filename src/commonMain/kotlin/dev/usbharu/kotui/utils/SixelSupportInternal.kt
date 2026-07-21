@@ -52,6 +52,11 @@ internal const val TERMINAL_PROBE = "\u001B[c\u001B[16t"
 /** Number of terminator characters expected in responses (DA1 ends with 'c', 16t with 't'). */
 internal const val TERMINAL_PROBE_TERMINATORS = 2
 
+internal fun normalizedProbeTimeout(timeoutMillis: Long): Int {
+    require(timeoutMillis in 0..Int.MAX_VALUE.toLong()) { "probe timeout must be in 0..${Int.MAX_VALUE} ms" }
+    return timeoutMillis.toInt()
+}
+
 /** Image protocol support inferred from environment variables. */
 internal data class EnvCaps(
     val sixel: Boolean,

@@ -456,9 +456,124 @@ private fun contains(ranges: IntArray, cp: Int): Boolean {
 
 internal fun codePointWidth(cp: Int): Int {
     if (cp == 0) return 0
+    if (cp in 0x1F3FB..0x1F3FF) return 0 // emoji skin-tone modifier
+    if (cp in 0xE0020..0xE007F) return 0 // emoji tag sequence characters
+    if (isUnicodeMark(cp)) return 0
     if (contains(ZERO_WIDTH_RANGES, cp)) return 0
     if (contains(WIDE_RANGES, cp)) return 2
     return 1
+}
+
+private fun isUnicodeMark(cp: Int): Boolean {
+    if (cp > Char.MAX_VALUE.code) return false
+    return when (cp.toChar().category) {
+        CharCategory.NON_SPACING_MARK,
+        CharCategory.COMBINING_SPACING_MARK,
+        CharCategory.ENCLOSING_MARK -> true
+        else -> false
+    }
+}
+
+private fun String.codePointAtIndex(index: Int): Pair<Int, Int> {
+    val c = this[index]
+    return if (c.isHighSurrogate() && index + 1 < length && this[index + 1].isLowSurrogate()) {
+        (0x10000 + ((c.code - 0xD800) shl 10) + (this[index + 1].code - 0xDC00)) to 2
+    } else {
+        c.code to 1
+    }
+}
+
+private fun isTerminalGraphemeExtend(cp: Int): Boolean =
+    cp != 0x200D && (
+        cp in 0x1F3FB..0x1F3FF ||
+        cp in 0xE0020..0xE007F ||
+        isUnicodeMark(cp) ||
+        (
+        cp !in 0x0000..0x001F &&
+        cp !in 0x007F..0x009F &&
+        contains(ZERO_WIDTH_RANGES, cp)
+        )
+    )
+
+/** Iterates terminal grapheme clusters as UTF-16 [start, end) ranges and cell widths. */
+internal fun String.forEachTerminalGrapheme(block: (start: Int, end: Int, width: Int) -> Unit) {
+    var i = 0
+    while (i < length) {
+        val start = i
+        val (firstCp, firstStep) = codePointAtIndex(i)
+        i += firstStep
+        var width = codePointWidth(firstCp)
+        var forceEmojiWidth = false
+
+        fun consumeExtensions() {
+            while (i < length) {
+                val (cp, step) = codePointAtIndex(i)
+                if (!isTerminalGraphemeExtend(cp)) break
+                if (cp == 0xFE0F || cp == 0x20E3 || cp in 0x1F3FB..0x1F3FF) forceEmojiWidth = true
+                i += step
+            }
+        }
+
+        consumeExtensions()
+
+        // Two regional indicators form one flag glyph.
+        if (firstCp in 0x1F1E6..0x1F1FF && i < length) {
+            val (nextCp, nextStep) = codePointAtIndex(i)
+            if (nextCp in 0x1F1E6..0x1F1FF) {
+                i += nextStep
+                width = 2
+                consumeExtensions()
+            }
+        }
+
+        // Emoji joined by ZWJ render as a single glyph, not the sum of components.
+        while (i < length) {
+            val (joiner, joinerStep) = codePointAtIndex(i)
+            if (joiner != 0x200D || i + joinerStep >= length) break
+            i += joinerStep
+            val (component, componentStep) = codePointAtIndex(i)
+            i += componentStep
+            width = maxOf(width, codePointWidth(component))
+            forceEmojiWidth = true
+            consumeExtensions()
+        }
+
+        if (forceEmojiWidth && width > 0) width = 2
+        block(start, i, width)
+    }
+}
+
+internal fun String.terminalGraphemeStart(index: Int): Int {
+    val target = index.coerceIn(0, length)
+    var result = target
+    forEachTerminalGrapheme { start, end, _ ->
+        if (target > start && target < end) result = start
+    }
+    return result
+}
+
+internal fun String.nextTerminalGraphemeBoundary(index: Int): Int {
+    val startIndex = terminalGraphemeStart(index)
+    if (startIndex >= length) return length
+    var result = length
+    var found = false
+    forEachTerminalGrapheme { start, end, _ ->
+        if (!found && start == startIndex) {
+            result = end
+            found = true
+        }
+    }
+    return result
+}
+
+internal fun String.previousTerminalGraphemeBoundary(index: Int): Int {
+    val startIndex = terminalGraphemeStart(index)
+    if (startIndex <= 0) return 0
+    var previous = 0
+    forEachTerminalGrapheme { start, _, _ ->
+        if (start < startIndex) previous = start
+    }
+    return previous
 }
 
 internal inline fun String.forEachCodePoint(block: (cp: Int, width: Int, charCount: Int) -> Unit) {
@@ -481,7 +596,7 @@ internal inline fun String.forEachCodePoint(block: (cp: Int, width: Int, charCou
 
 fun String.displayWidth(): Int {
     var total = 0
-    forEachCodePoint { _, w, _ -> total += w }
+    forEachTerminalGrapheme { _, _, w -> total += w }
     return total
 }
 
@@ -489,23 +604,16 @@ fun String.takeDisplayWidth(maxWidth: Int): String {
     if (maxWidth <= 0) return ""
     var used = 0
     var end = 0
-    var i = 0
-    while (i < length) {
-        val c = this[i]
-        val cp: Int
-        val step: Int
-        if (c.isHighSurrogate() && i + 1 < length && this[i + 1].isLowSurrogate()) {
-            cp = 0x10000 + ((c.code - 0xD800) shl 10) + (this[i + 1].code - 0xDC00)
-            step = 2
-        } else {
-            cp = c.code
-            step = 1
+    var stopped = false
+    forEachTerminalGrapheme { _, clusterEnd, w ->
+        if (!stopped) {
+            if (used + w > maxWidth) {
+                stopped = true
+            } else {
+                used += w
+                end = clusterEnd
+            }
         }
-        val w = codePointWidth(cp)
-        if (used + w > maxWidth) break
-        used += w
-        i += step
-        end = i
     }
     return if (end == length) this else substring(0, end)
 }
@@ -514,6 +622,14 @@ fun String.padDisplayEnd(width: Int, pad: Char = ' '): String {
     val current = displayWidth()
     if (current >= width) return this
     val sb = StringBuilder(this)
-    repeat(width - current) { sb.append(pad) }
+    var remaining = width - current
+    val padWidth = pad.toString().displayWidth()
+    if (padWidth > 0) {
+        while (remaining >= padWidth) {
+            sb.append(pad)
+            remaining -= padWidth
+        }
+    }
+    repeat(remaining) { sb.append(' ') }
     return sb.toString()
 }

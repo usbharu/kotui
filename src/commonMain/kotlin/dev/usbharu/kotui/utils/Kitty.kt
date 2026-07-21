@@ -28,7 +28,10 @@ object Kitty {
 
     fun encode(rgba: ByteArray, width: Int, height: Int): String {
         require(width > 0 && height > 0) { "width and height must be positive" }
-        val pixelBytes = width * height * 4
+        val pixelCount = width.toLong() * height.toLong()
+        require(pixelCount <= Int.MAX_VALUE / 4L) { "image is too large" }
+        val pixelBytesLong = pixelCount * 4L
+        val pixelBytes = pixelBytesLong.toInt()
         require(rgba.size >= pixelBytes) { "rgba buffer too small: ${rgba.size} < $pixelBytes" }
 
         val b64 = Base64.encode(rgba, 0, pixelBytes)

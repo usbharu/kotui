@@ -32,6 +32,7 @@ fun <T> Select(
     dropdownHeight: Int = 8,
     itemLabel: (T) -> String = { it.toString() },
 ) {
+    validateSelectDimensions(dropdownWidth, dropdownHeight)
     val focusManager = LocalFocusManager.current
     val focusId = remember { focusManager.allocateFocusId() }
     val isFocused = focusManager.isFocused(focusId)
@@ -44,8 +45,10 @@ fun <T> Select(
     val focusStyled = InteractiveWidgetOps.focusStyled(modifier)
 
     val openDropdown: () -> Unit = {
-        cursorState.value = items.indexOf(selected).coerceAtLeast(0)
-        expandedState.value = true
+        if (items.isNotEmpty()) {
+            cursorState.value = items.indexOf(selected).coerceAtLeast(0)
+            expandedState.value = true
+        }
     }
 
     ComposeNode<TuiNode, TuiApplier>(
@@ -62,15 +65,10 @@ fun <T> Select(
             set(openDropdown) { cb ->
                 onActivate = cb
                 onKeyEvent = { ev ->
-                    if (InteractiveWidgetOps.isActivate(ev)) {
-                        cb()
-                        true
-                    } else {
-                        false
-                    }
+                    if (InteractiveWidgetOps.isActivate(ev)) { cb(); true } else false
                 }
             }
-            set(focusStyled) { applyModifier(it) }
+            reconcile { applyModifier(focusStyled) }
         },
     )
 
@@ -96,4 +94,8 @@ fun <T> Select(
             )
         }
     }
+}
+
+internal fun validateSelectDimensions(width: Int, height: Int) {
+    require(width > 0 && height > 0) { "dropdown dimensions must be positive" }
 }

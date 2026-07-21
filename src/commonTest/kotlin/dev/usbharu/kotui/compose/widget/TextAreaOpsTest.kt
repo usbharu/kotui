@@ -103,4 +103,36 @@ class TextAreaOpsTest {
         assertEquals(1, TextAreaOps.rowColToCursor(s, 0, 3))
         assertEquals(2, TextAreaOps.rowColToCursor(s, 0, 4))
     }
+
+    @Test
+    fun cursorHelpersSnapAwayFromMiddleOfSurrogatePair() {
+        val s = "a\uD83D\uDE00b"
+
+        assertEquals(0, TextAreaOps.lineStart(s, 2))
+        assertEquals(4, TextAreaOps.lineEnd(s, 2))
+        assertEquals(0 to 1, TextAreaOps.cursorToRowCol(s, 2))
+    }
+
+    @Test
+    fun negativeDisplayColumnClampsToLineStart() {
+        assertEquals(3, TextAreaOps.rowColToCursor("ab\ncd", 1, -4))
+    }
+
+    @Test
+    fun rowColumnConversionDoesNotEnterJoinedEmoji() {
+        val family = "👨‍👩‍👧‍👦"
+        val value = family + "x"
+
+        assertEquals(0, TextAreaOps.rowColToCursor(value, 0, 1))
+        assertEquals(family.length, TextAreaOps.rowColToCursor(value, 0, 2))
+        assertEquals(0 to 2, TextAreaOps.cursorToRowCol(value, family.length))
+    }
+
+    @Test
+    fun rowColumnConversionTreatsCombiningTextAsOneCell() {
+        val value = "e\u0301x"
+
+        assertEquals(2, TextAreaOps.rowColToCursor(value, 0, 1))
+        assertEquals(0 to 1, TextAreaOps.cursorToRowCol(value, 2))
+    }
 }

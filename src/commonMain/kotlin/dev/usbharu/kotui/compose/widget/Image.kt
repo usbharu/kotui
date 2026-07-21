@@ -32,13 +32,17 @@ class TerminalImage(
     init {
         require(pixelWidth > 0 && pixelHeight > 0) { "pixel dimensions must be positive" }
         require(cellPixelWidth > 0 && cellPixelHeight > 0) { "cell pixel dimensions must be positive" }
-        require(rgba.size >= pixelWidth * pixelHeight * 4) { "rgba buffer too small" }
+        val pixelCount = pixelWidth.toLong() * pixelHeight.toLong()
+        require(pixelCount <= Int.MAX_VALUE / 4L) { "image is too large" }
+        val requiredBytes = pixelCount * 4L
+        require(rgba.size.toLong() >= requiredBytes) { "rgba buffer too small" }
+        require(maxColors in 1..256) { "maxColors must be in 1..256" }
     }
 
-    private val rgbaRef = rgba
+    private val rgbaRef = rgba.copyOf((pixelWidth.toLong() * pixelHeight.toLong() * 4L).toInt())
 
-    val cellWidth: Int = (pixelWidth + cellPixelWidth - 1) / cellPixelWidth
-    val cellHeight: Int = (pixelHeight + cellPixelHeight - 1) / cellPixelHeight
+    val cellWidth: Int = 1 + (pixelWidth - 1) / cellPixelWidth
+    val cellHeight: Int = 1 + (pixelHeight - 1) / cellPixelHeight
 
     /** Sixel escape sequence for this image. */
     val sixel: String by lazy { Sixel.encode(rgbaRef, pixelWidth, pixelHeight, maxColors) }
@@ -61,7 +65,7 @@ fun Image(image: TerminalImage, modifier: Modifier = Modifier) {
                 this.preferredWidth = it.cellWidth
                 this.preferredHeight = it.cellHeight
             }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         }
     )
 }

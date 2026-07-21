@@ -7,21 +7,17 @@ import dev.usbharu.kotui.compose.node.TuiNode
 import dev.usbharu.kotui.compose.widget.TerminalImage
 import dev.usbharu.kotui.core.Rect
 import dev.usbharu.kotui.core.Style
-import dev.usbharu.kotui.utils.Ansi
 import dev.usbharu.kotui.utils.SixelSupport
 import dev.usbharu.kotui.utils.TerminalCaps
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import dev.usbharu.kotui.utils.Ansi
 
 class TuiRendererBufferTest {
-    @AfterTest
-    fun resetCaps() {
-        SixelSupport.overrideForTesting(null)
-    }
-
     private fun root(vararg children: TuiNode): TuiNode =
         TuiNode("Root").apply {
             layoutPolicy = LayoutPolicy.BOX
@@ -36,6 +32,231 @@ class TuiRendererBufferTest {
             pixelHeight = 2,
             fallbackText = fallback,
         )
+
+    @Test
+    fun styleColorFieldsCannotInjectNonSgrTerminalCommands() {
+        assertTrue(isSafeSgrSequence("\u001B[38;2;1;2;3m"))
+        assertFalse(isSafeSgrSequence("\u001B[2J"))
+        assertFalse(isSafeSgrSequence("plain text"))
+        assertFalse(isSafeSgrSequence("\u001B]52;c;payload\u0007"))
+    }
+
+    @AfterTest
+    fun clearTerminalCaps() {
+        SixelSupport.overrideForTesting(null)
+    }
+
+    @Test
+    fun renderToBufferDrawsBorderFillTextAndHighlights() {
+        val root = TuiNode("root").apply {
+            layoutPolicy = LayoutPolicy.BOX
+            bounds = Rect(0, 0, 10, 5)
+        }
+        val panel = TuiNode("panel").apply {
+            bounds = Rect(0, 0, 10, 4)
+            drawBorder = true
+            borderTitle = "T"
+            fillChar = '.'
+            style = Style(fg = "base")
+        }
+        val text = TuiNode("text").apply {
+            bounds = Rect(2, 2, 5, 1)
+            this.text = "hello"
+            style = Style(fg = "text")
+            textHighlights = listOf(TextHighlight(1, 4, Style(bg = "hl", bold = true)))
+        }
+        root.insertAt(0, panel)
+        root.insertAt(1, text)
+        root.insertAt(2, TuiNode("fill").apply {
+            bounds = Rect(0, 4, 3, 1)
+            fillChar = '#'
+        })
+
+        val renderer = TuiRenderer(10, 5)
+        renderer.renderToBuffer(root, FocusManager())
+
+        assertEquals("+", renderer.buffer.get(0, 0).content)
+        assertEquals("-", renderer.buffer.get(1, 0).content)
+        assertEquals(" ", renderer.buffer.get(2, 0).content)
+        assertEquals("T", renderer.buffer.get(3, 0).content)
+        assertEquals(" ", renderer.buffer.get(8, 2).content)
+        assertEquals("#", renderer.buffer.get(1, 4).content)
+        assertEquals("h", renderer.buffer.get(2, 2).content)
+        assertEquals("e", renderer.buffer.get(3, 2).content)
+        assertEquals("hl", renderer.buffer.get(3, 2).style.bg)
+        assertTrue(renderer.buffer.get(3, 2).style.bold)
+        assertFalse(renderer.buffer.get(2, 2).style.bold)
+    }
+
+    @Test
+    fun focusedNodeUsesFocusedStyle() {
+        val root = TuiNode("root")
+        val focused = TuiNode("focused").apply {
+            bounds = Rect(0, 0, 2, 1)
+            text = "ok"
+            focusable = true
+            focusId = 12
+            style = Style(fg = "normal")
+            focusedStyle = Style(fg = "focused", underline = true)
+        }
+        root.insertAt(0, focused)
+        val focusManager = FocusManager()
+        focusManager.requestFocus(12)
+
+        val renderer = TuiRenderer(4, 1)
+        renderer.renderToBuffer(root, focusManager)
+
+        assertEquals("focused", renderer.buffer.get(0, 0).style.fg)
+        assertTrue(renderer.buffer.get(0, 0).style.underline)
+    }
+
+    @Test
+    fun imageFallbackTextIsRenderedWhenGraphicsAreUnsupported() {
+        SixelSupport.overrideForTesting(TerminalCaps.UNSUPPORTED)
+        val image = TerminalImage(
+            rgba = ByteArray(4) { 0x7f },
+            pixelWidth = 1,
+            pixelHeight = 1,
+            fallbackText = "img",
+        )
+        val root = TuiNode("root")
+        val node = TuiNode("image").apply {
+            bounds = Rect(1, 0, 3, 1)
+            this.image = image
+            style = Style(fg = "image")
+        }
+        root.insertAt(0, node)
+
+        val renderer = TuiRenderer(5, 2)
+        renderer.renderToBuffer(root, FocusManager())
+
+        assertEquals("i", renderer.buffer.get(1, 0).content)
+        assertEquals("image", renderer.buffer.get(1, 0).style.fg)
+        assertEquals(1, renderer.buffer.imagePlacements().size)
+        assertEquals(1, renderer.buffer.imagePlacements().single().x)
+    }
+
+    @Test
+    fun zeroSizedBorderDrawsNothing() {
+        val root = TuiNode("root")
+        root.insertAt(0, TuiNode("empty-border").apply {
+            bounds = Rect(0, 0, 0, 0)
+            drawBorder = true
+        })
+        val renderer = TuiRenderer(2, 1)
+
+        renderer.renderToBuffer(root, FocusManager())
+
+        assertEquals(" ", renderer.buffer.get(0, 0).content)
+    }
+
+    @Test
+    fun highlightTouchingWideContinuationStylesWholeGlyph() {
+        val root = TuiNode("root")
+        root.insertAt(0, TuiNode("wide").apply {
+            bounds = Rect(0, 0, 2, 1)
+            text = "界"
+            textHighlights = listOf(TextHighlight(1, 2, Style(bg = "selected")))
+        })
+        val renderer = TuiRenderer(2, 1)
+
+        renderer.renderToBuffer(root, FocusManager())
+
+        assertEquals("selected", renderer.buffer.get(0, 0).style.bg)
+        assertTrue(renderer.buffer.get(1, 0).isContinuation)
+    }
+
+    @Test
+    fun fallbackTextIsClippedToNodeWidth() {
+        SixelSupport.overrideForTesting(TerminalCaps.UNSUPPORTED)
+        val root = TuiNode("root")
+        root.insertAt(0, TuiNode("image").apply {
+            bounds = Rect(0, 0, 1, 1)
+            image = TerminalImage(ByteArray(8) { 1 }, 2, 1, cellPixelWidth = 1, fallbackText = "ab")
+        })
+        val renderer = TuiRenderer(3, 1)
+
+        renderer.renderToBuffer(root, FocusManager())
+
+        assertEquals("a", renderer.buffer.get(0, 0).content)
+        assertEquals(" ", renderer.buffer.get(1, 0).content)
+    }
+
+    @Test
+    fun effectiveZIndexSaturatesInsteadOfWrapping() {
+        val root = TuiNode("root").apply { zIndex = Int.MAX_VALUE }
+        root.insertAt(0, TuiNode("child").apply {
+            bounds = Rect(0, 0, 1, 1)
+            text = "x"
+            zIndex = 1
+        })
+        val renderer = TuiRenderer(1, 1)
+
+        renderer.renderToBuffer(root, FocusManager())
+
+        assertEquals(Int.MAX_VALUE, renderer.buffer.get(0, 0).zIndex)
+    }
+
+    @Test
+    fun zIndexOverflowKeepsPrecisionForDeeperDescendants() {
+        val root = TuiNode("root").apply { zIndex = Int.MAX_VALUE }
+        val overflow = TuiNode("overflow").apply { zIndex = 10 }
+        val recover = TuiNode("recover").apply {
+            zIndex = -10
+            text = "x"
+            bounds = Rect(0, 0, 1, 1)
+        }
+        root.insertAt(0, overflow)
+        overflow.insertAt(0, recover)
+
+        val renderer = TuiRenderer(1, 1)
+        renderer.renderToBuffer(root, FocusManager())
+
+        assertEquals(Int.MAX_VALUE, renderer.buffer.get(0, 0).zIndex)
+    }
+
+    @Test
+    fun failedResizeLeavesRendererDimensionsUnchanged() {
+        val renderer = TuiRenderer(3, 2)
+
+        assertFailsWith<IllegalArgumentException> { renderer.resize(-1, 2) }
+
+        assertEquals(3, renderer.screenWidth)
+        assertEquals(2, renderer.screenHeight)
+    }
+
+    @Test
+    fun wideFillCharacterIsRepeatedWithoutDanglingCells() {
+        val root = TuiNode("root")
+        root.insertAt(0, TuiNode("fill").apply {
+            bounds = Rect(0, 0, 5, 1)
+            fillChar = '界'
+        })
+        val renderer = TuiRenderer(5, 1)
+
+        renderer.renderToBuffer(root, FocusManager())
+
+        assertEquals("界", renderer.buffer.get(0, 0).content)
+        assertTrue(renderer.buffer.get(1, 0).isContinuation)
+        assertEquals("界", renderer.buffer.get(2, 0).content)
+        assertTrue(renderer.buffer.get(3, 0).isContinuation)
+        assertEquals(" ", renderer.buffer.get(4, 0).content)
+    }
+
+    @Test
+    fun zeroWidthFillCharacterDoesNotCorruptBuffer() {
+        val root = TuiNode("root")
+        root.insertAt(0, TuiNode("fill").apply {
+            bounds = Rect(0, 0, 2, 1)
+            fillChar = '\u0301'
+        })
+        val renderer = TuiRenderer(2, 1)
+
+        renderer.renderToBuffer(root, FocusManager())
+
+        assertEquals(" ", renderer.buffer.get(0, 0).content)
+        assertEquals(" ", renderer.buffer.get(1, 0).content)
+    }
 
     @Test
     fun focusedNodeUsesFocusedStyleWhenRenderingText() {
@@ -481,7 +702,7 @@ class TuiRendererBufferTest {
         SixelSupport.overrideForTesting(TerminalCaps(sixelSupported = false, kittySupported = true))
         var output = ""
         val node = TuiNode("Image").apply {
-            bounds = Rect(-2, -1, 1, 1)
+            bounds = Rect(0, 0, 1, 1)
             image = image(fallback = "ALT")
         }
         val renderer = TuiRenderer(4, 2) { output = it }
@@ -508,4 +729,5 @@ class TuiRendererBufferTest {
         assertTrue(output.contains(Ansi.cursorTo(2, 2)))
         assertTrue(output.contains(node.image!!.sixel))
     }
+
 }

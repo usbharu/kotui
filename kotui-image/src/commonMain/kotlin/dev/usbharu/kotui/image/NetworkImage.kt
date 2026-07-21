@@ -55,6 +55,8 @@ public fun NetworkImage(
     loading: @Composable () -> Unit = { Text("[loading image…]", modifier) },
     failure: @Composable (String) -> Unit = { msg -> Text("[image load failed: $msg]", modifier) },
 ) {
+    require(cellPixelWidth > 0 && cellPixelHeight > 0) { "cell pixel dimensions must be positive" }
+    require(maxColors in 1..256) { "maxColors must be in 1..256" }
     val state by produceState<ImageLoadState>(
         initialValue = ImageLoadState.Loading,
         key1 = url,
@@ -94,8 +96,8 @@ public fun NetworkImage(
             val caps = SixelSupport.cached
             val graphicsSupported = caps != null && (caps.sixelSupported || caps.kittySupported)
             if (forceFallback || !graphicsSupported) {
-                val widthCells = (s.pixelWidth + cellPixelWidth - 1) / cellPixelWidth
-                val heightCells = (s.pixelHeight + cellPixelHeight - 1) / cellPixelHeight
+                val widthCells = cellCountForPixels(s.pixelWidth, cellPixelWidth)
+                val heightCells = cellCountForPixels(s.pixelHeight, cellPixelHeight)
                 FallbackBlock(
                     widthCells = widthCells,
                     heightCells = heightCells,
@@ -119,6 +121,12 @@ public fun NetworkImage(
             }
         }
     }
+}
+
+internal fun cellCountForPixels(pixelCount: Int, pixelsPerCell: Int): Int {
+    require(pixelCount > 0) { "pixel count must be positive" }
+    require(pixelsPerCell > 0) { "pixels per cell must be positive" }
+    return 1 + (pixelCount - 1) / pixelsPerCell
 }
 
 /**
@@ -147,7 +155,7 @@ private fun FallbackBlock(
             set(heightCells) { this.preferredHeight = it }
             set(text) { this.text = it }
             set(style) { this.style = it }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         },
     )
 }

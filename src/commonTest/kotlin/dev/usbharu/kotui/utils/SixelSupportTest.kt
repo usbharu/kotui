@@ -4,8 +4,22 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 class SixelSupportTest {
+    @Test
+    fun terminalCapsRejectImpossibleCellMetrics() {
+        assertFailsWith<IllegalArgumentException> { TerminalCaps(false, cellPixelWidth = 0) }
+        assertFailsWith<IllegalArgumentException> { TerminalCaps(false, cellPixelHeight = -1) }
+    }
+
+    @Test
+    fun probeTimeoutRejectsNegativeAndNarrowingOverflow() {
+        assertEquals(200, normalizedProbeTimeout(200))
+        assertFailsWith<IllegalArgumentException> { normalizedProbeTimeout(-1) }
+        assertFailsWith<IllegalArgumentException> { normalizedProbeTimeout(Long.MAX_VALUE) }
+    }
+
     private fun env(vararg pairs: Pair<String, String>): (String) -> String? {
         val map = pairs.toMap()
         return { map[it] }

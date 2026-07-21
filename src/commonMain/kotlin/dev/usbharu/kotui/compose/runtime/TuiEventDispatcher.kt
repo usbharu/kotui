@@ -45,7 +45,7 @@ internal class TuiEventDispatcher {
 
     fun dispatchKey(event: KeyEvent): Boolean {
         if (event.key == Key.TAB) {
-            focusManager.focusNext(rootNode)
+            if (event.shift) focusManager.focusPrevious(rootNode) else focusManager.focusNext(rootNode)
             clearHandledKey()
             return true
         }

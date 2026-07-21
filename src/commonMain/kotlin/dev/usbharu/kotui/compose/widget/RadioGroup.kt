@@ -43,7 +43,7 @@ fun <T> RadioGroup(
             set(focusId) { this.focusId = it }
             set(options.size) { preferredHeight = it.coerceAtLeast(1) }
             set(keyHandler) { onKeyEvent = it }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         },
         content = {
             if (options.isEmpty()) {

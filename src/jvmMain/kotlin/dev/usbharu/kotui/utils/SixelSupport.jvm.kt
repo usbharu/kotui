@@ -11,14 +11,14 @@ actual object SixelSupport {
     }
 
     actual fun detect(timeoutMillis: Long): TerminalCaps {
-        val probe = probe(timeoutMillis)
+        val probe = probe(normalizedProbeTimeout(timeoutMillis))
         val env = detectCapsFromEnv { System.getenv(it) }
         val caps = mergeCaps(probe, env)
         cachedValue = caps
         return caps
     }
 
-    private fun probe(timeoutMillis: Long): TerminalCaps? {
+    private fun probe(timeoutMillis: Int): TerminalCaps? {
         if (System.console() == null) return null
         val out = System.out
         val input = System.`in`
@@ -31,7 +31,7 @@ actual object SixelSupport {
 
         val buf = StringBuilder()
         var terminators = 0
-        val deadline = System.currentTimeMillis() + timeoutMillis
+        val deadline = System.currentTimeMillis() + timeoutMillis.toLong()
         while (System.currentTimeMillis() < deadline && terminators < TERMINAL_PROBE_TERMINATORS) {
             try {
                 if (input.available() > 0) {

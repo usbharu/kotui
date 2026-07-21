@@ -11,7 +11,7 @@ import dev.usbharu.kotui.compose.node.TuiNode
 fun Box(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("Box").apply { layoutPolicy = LayoutPolicy.BOX } },
-        update = { set(modifier) { applyModifier(it) } },
+        update = { reconcile { applyModifier(modifier) } },
         content = content
     )
 }

@@ -79,6 +79,78 @@ class TextEditOpsTest {
     }
 
     @Test
+    fun clampBoundaryAvoidsMidSurrogate() {
+        val s = "a\uD83D\uDE00b"
+        // index 2 lands in the middle of the surrogate pair → snap to 1
+        assertEquals(1, TextEditOps.clampToBoundary(s, 2))
+        assertEquals(3, TextEditOps.clampToBoundary(s, 3))
+        assertEquals(0, TextEditOps.clampToBoundary(s, 0))
+    }
+
+    @Test
+    fun codePointMovementClampsOutOfRangeAndMidSurrogateIndices() {
+        val s = "a\uD83D\uDE00b"
+
+        assertEquals(1, TextEditOps.nextCodePoint(s, -10))
+        assertEquals(3, TextEditOps.nextCodePoint(s, 2))
+        assertEquals(4, TextEditOps.nextCodePoint(s, 99))
+        assertEquals(0, TextEditOps.prevCodePoint(s, -10))
+        assertEquals(0, TextEditOps.prevCodePoint(s, 2))
+        assertEquals(3, TextEditOps.prevCodePoint(s, 99))
+    }
+
+    @Test
+    fun wordMovementClampsIndicesAndTreatsUnicodeLettersAsWords() {
+        val s = "日本 語"
+
+        assertEquals(2, TextEditOps.nextWordBoundary(s, -5))
+        assertEquals(4, TextEditOps.nextWordBoundary(s, 99))
+        assertEquals(3, TextEditOps.prevWordBoundary(s, 99))
+        assertEquals(0, TextEditOps.prevWordBoundary(s, -5))
+    }
+
+    @Test
+    fun replacementAndDeletionNeverSplitSurrogatePairs() {
+        val s = "a\uD83D\uDE00b"
+
+        assertEquals("a!\uD83D\uDE00b" to 2, TextEditOps.replace(s, 2, null, "!"))
+        assertEquals("a!b" to 2, TextEditOps.replace(s, 0, 2..3, "!"))
+        assertEquals("ab" to 1, TextEditOps.deleteRange(s, 2, 3))
+    }
+
+    @Test
+    fun movementTreatsCombiningSequenceAsOneCharacter() {
+        val s = "e\u0301x"
+
+        assertEquals(2, TextEditOps.nextCodePoint(s, 0))
+        assertEquals(0, TextEditOps.prevCodePoint(s, 2))
+        assertEquals(0, TextEditOps.clampToBoundary(s, 1))
+    }
+
+    @Test
+    fun movementTreatsZwjEmojiAsOneCharacter() {
+        val family = "👨‍👩‍👧‍👦"
+
+        assertEquals(family.length, TextEditOps.nextCodePoint(family, 0))
+        assertEquals(0, TextEditOps.prevCodePoint(family, family.length))
+        assertEquals(0, TextEditOps.clampToBoundary(family, 3))
+    }
+
+    @Test
+    fun movementTreatsFlagAndSkinToneEmojiAsSingleCharacters() {
+        assertEquals("🇯🇵".length, TextEditOps.nextCodePoint("🇯🇵x", 0))
+        assertEquals("👍🏽".length, TextEditOps.nextCodePoint("👍🏽x", 0))
+        assertEquals(0, TextEditOps.prevCodePoint("👍🏽", "👍🏽".length))
+    }
+
+    @Test
+    fun deletionNeverSplitsTerminalGrapheme() {
+        val family = "👨‍👩‍👧‍👦"
+        assertEquals("x" to 0, TextEditOps.deleteRange(family + "x", 0, TextEditOps.nextCodePoint(family, 0)))
+        assertEquals("x" to 0, TextEditOps.deleteRange("👍🏽x", 0, TextEditOps.nextCodePoint("👍🏽x", 0)))
+    }
+
+    @Test
     fun replaceIfValidAcceptsValidCandidate() {
         val replacement = TextEditOps.replaceIfValid(
             value = "12",
@@ -112,20 +184,11 @@ class TextEditOpsTest {
     }
 
     @Test
-    fun clampBoundaryAvoidsMidSurrogate() {
-        val s = "a\uD83D\uDE00b"
-        // index 2 lands in the middle of the surrogate pair → snap to 1
-        assertEquals(1, TextEditOps.clampToBoundary(s, 2))
-        assertEquals(3, TextEditOps.clampToBoundary(s, 3))
-        assertEquals(0, TextEditOps.clampToBoundary(s, 0))
-    }
-
-    @Test
-    fun wordBoundariesTreatNonAsciiAsSingleNonWordCodePoints() {
+    fun wordBoundariesTreatUnicodeLettersAsPartOfWord() {
         val s = "あfoo"
 
         assertEquals(4, TextEditOps.nextWordBoundary(s, 0))
-        assertEquals(1, TextEditOps.prevWordBoundary(s, 4))
+        assertEquals(0, TextEditOps.prevWordBoundary(s, 4))
     }
 
     @Test
@@ -206,4 +269,5 @@ class TextEditOpsTest {
         assertEquals(0, TextEditOps.clampToBoundary("\uDC4D", 0))
         assertEquals(1, TextEditOps.clampToBoundary("\uD83D", 1))
     }
+
 }

@@ -178,10 +178,6 @@ private fun RenderListItemBody(
                 RenderDecimalList(node, styles, indent + 1)
             }
             is AstNode.InlineNode -> inlineBuf.add(node)
-            else -> {
-                flushInline()
-                RenderBlock(node as AstNode, styles, quoteDepth = 0, listIndent = indent)
-            }
         }
     }
     flushInline()
@@ -216,7 +212,6 @@ private fun RenderQuote(
                 RenderQuote(child, styles, depth + 1)
             }
             is AstNode.InlineNode -> inlineBuf.add(child)
-            else -> flushInline()
         }
     }
     flushInline()

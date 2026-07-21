@@ -65,9 +65,8 @@ class ImageFallbackTextTest {
             layoutPolicy = LayoutPolicy.LEAF
             image = solidImage(pixelW = 100, pixelH = 40, fallback = "FALLBACK")
             bounds = Rect(0, 0, 10, 2)
-            parent = root
         }
-        root.children.add(imageNode)
+        root.insertAt(0, imageNode)
 
         renderer.renderToBuffer(root, FocusManager())
 
@@ -89,9 +88,8 @@ class ImageFallbackTextTest {
             layoutPolicy = LayoutPolicy.LEAF
             image = solidImage(pixelW = 100, pixelH = 40, fallback = "FALLBACK")
             bounds = Rect(0, 0, 10, 2)
-            parent = root
         }
-        root.children.add(imageNode)
+        root.insertAt(0, imageNode)
 
         renderer.renderToBuffer(root, FocusManager())
 

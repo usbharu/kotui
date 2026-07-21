@@ -12,6 +12,7 @@ import dev.usbharu.kotui.compose.modifier.Modifier
 import dev.usbharu.kotui.compose.node.LayoutPolicy
 import dev.usbharu.kotui.compose.node.TuiNode
 import kotlinx.coroutines.delay
+import dev.usbharu.kotui.utils.displayWidth
 
 private val DEFAULT_FRAMES = listOf('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
 private const val DEFAULT_INTERVAL_MS = 80L
@@ -41,7 +42,7 @@ fun Spinner(
     var frame by remember { mutableStateOf(0) }
     LaunchedEffect(chars, intervalMs) {
         while (true) {
-            delay(intervalMs)
+            delay(intervalMs.coerceAtLeast(1L))
             frame++
         }
     }
@@ -58,19 +59,30 @@ fun Spinner(
     chars: List<Char> = DEFAULT_FRAMES,
     modifier: Modifier = Modifier,
 ) {
-    val display = spinnerFrame(frame, chars)
+    val display = spinnerFrameText(frame, chars)
+    val displayWidth = display.displayWidth()
 
     ComposeNode<TuiNode, TuiApplier>(
         factory = {
             TuiNode("Spinner").apply {
                 layoutPolicy = LayoutPolicy.LEAF
                 preferredHeight = 1
-                preferredWidth = 1
+                preferredWidth = displayWidth
             }
         },
         update = {
             set(display) { text = it }
-            set(modifier) { applyModifier(it) }
+            set(displayWidth) { preferredWidth = it }
+            reconcile { applyModifier(modifier) }
         }
     )
+}
+
+internal fun spinnerFrameText(frame: Int, chars: List<Char>): String {
+    if (chars.isEmpty()) return " "
+    val remainder = frame % chars.size
+    val index = if (remainder < 0) remainder + chars.size else remainder
+    val result = chars[index].toString()
+    require(result.displayWidth() in 1..2) { "spinner frames must be visible terminal characters" }
+    return result
 }

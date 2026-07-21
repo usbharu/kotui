@@ -4,9 +4,37 @@ import dev.usbharu.kotui.core.Style
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class RenderBufferTest {
+    @Test
+    fun negativeZContentCanPaintAnEmptyCell() {
+        val buffer = RenderBuffer(1, 1)
+        buffer.set(0, 0, 'x', Style(), -10)
+
+        assertEquals("x", buffer.get(0, 0).content)
+        assertEquals(-10, buffer.get(0, 0).zIndex)
+    }
+
+    @Test
+    fun setUsesTerminalWidthOfWideCharacter() {
+        val buffer = RenderBuffer(2, 1)
+        buffer.set(0, 0, '界', Style(), 0)
+
+        assertEquals(2, buffer.get(0, 0).width)
+        assertTrue(buffer.get(1, 0).isContinuation)
+    }
+
+    @Test
+    fun setGraphemeRejectsImpossibleCellWidths() {
+        val buffer = RenderBuffer(3, 1)
+
+        assertFailsWith<IllegalArgumentException> { buffer.setGrapheme(0, 0, "x", 0, Style(), 0) }
+        assertFailsWith<IllegalArgumentException> { buffer.setGrapheme(0, 0, "xyz", 3, Style(), 0) }
+        assertFailsWith<IllegalArgumentException> { buffer.setGrapheme(0, 0, "", 1, Style(), 0) }
+    }
+
     @Test
     fun asciiWrite() {
         val buf = RenderBuffer(10, 1)
@@ -42,6 +70,18 @@ class RenderBufferTest {
     }
 
     @Test
+    fun joinedEmojiIsStoredAsOneWideGrapheme() {
+        val buf = RenderBuffer(4, 1)
+        val family = "👨‍👩‍👧‍👦"
+
+        buf.writeString(0, 0, family + "x", Style(), 0)
+
+        assertEquals(family, buf.get(0, 0).content)
+        assertTrue(buf.get(1, 0).isContinuation)
+        assertEquals("x", buf.get(2, 0).content)
+    }
+
+    @Test
     fun combiningMarkAttachesToPreviousCell() {
         val buf = RenderBuffer(10, 1)
         buf.writeString(0, 0, "e\u0301", Style(), 0) // é
@@ -68,6 +108,7 @@ class RenderBufferTest {
         buf.set(1, 0, 'X', Style(), 1)
         assertEquals("X", buf.get(1, 0).content)
         // The original wide-char left cell should have been cleared (logically dangling)
+        assertEquals(" ", buf.get(0, 0).content)
         assertFalse(buf.get(1, 0).isContinuation)
     }
 
@@ -81,12 +122,61 @@ class RenderBufferTest {
     }
 
     @Test
+    fun overwritingWideCharLeadClearsItsContinuation() {
+        val buf = RenderBuffer(4, 1)
+        buf.writeString(1, 0, "あ", Style(), 0)
+
+        buf.set(1, 0, 'X', Style(), 1)
+
+        assertEquals("X", buf.get(1, 0).content)
+        assertEquals(" ", buf.get(2, 0).content)
+        assertFalse(buf.get(2, 0).isContinuation)
+    }
+
+    @Test
+    fun clearingWideOverlapDoesNotLeaveGhostZIndex() {
+        val buf = RenderBuffer(4, 1)
+        buf.writeString(0, 0, "あ", Style(), 5)
+        buf.set(1, 0, 'X', Style(), 5)
+
+        buf.set(0, 0, 'a', Style(), 1)
+
+        assertEquals("a", buf.get(0, 0).content)
+    }
+
+    @Test
+    fun imagePlacementClearsBothHalvesOfOverlappedWideCells() {
+        val buf = RenderBuffer(4, 1)
+        buf.writeString(0, 0, "あ", Style(), 0)
+        val image = dev.usbharu.kotui.compose.widget.TerminalImage(
+            rgba = byteArrayOf(0, 0, 0, 0),
+            pixelWidth = 1,
+            pixelHeight = 1,
+            cellPixelWidth = 1,
+            cellPixelHeight = 1,
+        )
+
+        buf.placeImage(1, 0, image, 1)
+
+        assertEquals(" ", buf.get(0, 0).content)
+        assertEquals(" ", buf.get(1, 0).content)
+        assertFalse(buf.get(1, 0).isContinuation)
+    }
+
+    @Test
+    fun negativeDimensionsAreRejectedConsistently() {
+        assertFailsWith<IllegalArgumentException> { RenderBuffer(-1, 1) }
+        val buf = RenderBuffer(1, 1)
+        assertFailsWith<IllegalArgumentException> { buf.resize(1, -1) }
+    }
+
+    @Test
     fun outOfBoundsWritesAreIgnoredAndReadsReturnBlankCell() {
         val buf = RenderBuffer(2, 1)
         buf.set(-1, 0, 'X', Style(), 0)
         buf.set(0, -1, 'Y', Style(), 0)
         buf.set(3, 0, 'Z', Style(), 0)
-        buf.setGrapheme(0, 0, "", 0, Style(), 0)
+        assertFailsWith<IllegalArgumentException> { buf.setGrapheme(0, 0, "", 0, Style(), 0) }
 
         assertEquals(" ", buf.get(0, 0).content)
         assertEquals(" ", buf.get(-1, 0).content)
@@ -114,14 +204,15 @@ class RenderBufferTest {
     }
 
     @Test
-    fun overwritingLeftHalfOfWideCharLeavesRightContinuationUntouched() {
+    fun overwritingLeftHalfOfWideCharClearsRightContinuation() {
         val buf = RenderBuffer(4, 1)
         buf.writeString(1, 0, "あ", Style(), 0)
 
         buf.set(1, 0, 'A', Style(), 1)
 
         assertEquals("A", buf.get(1, 0).content)
-        assertTrue(buf.get(2, 0).isContinuation)
+        assertEquals(" ", buf.get(2, 0).content)
+        assertFalse(buf.get(2, 0).isContinuation)
     }
 
     @Test
@@ -153,7 +244,7 @@ class RenderBufferTest {
     fun setGraphemeRejectsInvalidCoordinatesAndWidths() {
         val buf = RenderBuffer(2, 1)
         buf.setGrapheme(0, -1, "X", 1, Style(), 0)
-        buf.setGrapheme(0, 0, "X", 0, Style(), 0)
+        assertFailsWith<IllegalArgumentException> { buf.setGrapheme(0, 0, "X", 0, Style(), 0) }
         buf.setGrapheme(-1, 0, "X", 1, Style(), 0)
         buf.setGrapheme(2, 0, "X", 1, Style(), 0)
 
@@ -174,7 +265,7 @@ class RenderBufferTest {
     }
 
     @Test
-    fun lowerZIndexImagePlacementCannotClearHigherCellsAndClipsBounds() {
+    fun invalidImagePlacementCannotClearHigherCellsOrEscapeBounds() {
         val buf = RenderBuffer(3, 2)
         buf.set(1, 0, 'X', Style(), 10)
         val image = dev.usbharu.kotui.compose.widget.TerminalImage(
@@ -185,11 +276,11 @@ class RenderBufferTest {
             cellPixelHeight = 1,
         )
 
-        buf.placeImage(-1, -1, image, zIndex = 0)
+        assertFalse(buf.placeImage(-1, -1, image, zIndex = 0))
 
         assertEquals("X", buf.get(1, 0).content)
         assertEquals(" ", buf.get(0, 0).content)
-        assertEquals(ImagePlacement(-1, -1, 2, 2, image, 0), buf.imagePlacements().single())
+        assertTrue(buf.imagePlacements().isEmpty())
     }
 
     @Test
@@ -253,4 +344,5 @@ class RenderBufferTest {
         assertEquals(5, buf.get(1, 0).zIndex)
         assertEquals(ImagePlacement(1, 0, 2, 2, image, 5), buf.imagePlacements().single())
     }
+
 }

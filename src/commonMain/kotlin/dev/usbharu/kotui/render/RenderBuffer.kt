@@ -2,12 +2,13 @@ package dev.usbharu.kotui.render
 
 import dev.usbharu.kotui.compose.widget.TerminalImage
 import dev.usbharu.kotui.core.Style
-import dev.usbharu.kotui.utils.forEachCodePoint
+import dev.usbharu.kotui.utils.forEachTerminalGrapheme
+import dev.usbharu.kotui.utils.displayWidth
 
 data class Cell(
     val content: String = " ",
     val style: Style = Style(),
-    val zIndex: Int = 0,
+    val zIndex: Int = Int.MIN_VALUE,
     val width: Int = 1,
     val isContinuation: Boolean = false
 )
@@ -23,6 +24,10 @@ data class ImagePlacement(
 )
 
 class RenderBuffer(width: Int, height: Int) {
+    init {
+        require(width >= 0) { "width must be non-negative" }
+        require(height >= 0) { "height must be non-negative" }
+    }
     var width: Int = width
         private set
     var height: Int = height
@@ -32,6 +37,8 @@ class RenderBuffer(width: Int, height: Int) {
 
     /** Reallocates the cell grid to [newWidth] × [newHeight]. Existing contents are discarded. */
     fun resize(newWidth: Int, newHeight: Int) {
+        require(newWidth >= 0) { "width must be non-negative" }
+        require(newHeight >= 0) { "height must be non-negative" }
         if (newWidth == width && newHeight == height) return
         width = newWidth
         height = newHeight
@@ -40,12 +47,15 @@ class RenderBuffer(width: Int, height: Int) {
     }
 
     fun set(x: Int, y: Int, char: Char, style: Style, zIndex: Int) {
-        setGrapheme(x, y, char.toString(), 1, style, zIndex)
+        val content = char.toString()
+        val width = content.displayWidth()
+        if (width > 0) setGrapheme(x, y, content, width, style, zIndex)
     }
 
     fun setGrapheme(x: Int, y: Int, grapheme: String, graphemeWidth: Int, style: Style, zIndex: Int) {
+        require(grapheme.isNotEmpty()) { "grapheme must not be empty" }
+        require(graphemeWidth in 1..2) { "terminal grapheme width must be 1 or 2" }
         if (y < 0 || y >= height) return
-        if (graphemeWidth <= 0) return
 
         val placeWidth = if (graphemeWidth == 2 && x + 1 >= width) 1 else graphemeWidth
         val placeContent = if (graphemeWidth == 2 && x + 1 >= width) " " else grapheme
@@ -86,10 +96,17 @@ class RenderBuffer(width: Int, height: Int) {
     }
 
     private fun clearOverlap(x: Int, y: Int, w: Int, zIndex: Int) {
+        val existing = cells[y][x]
+        if (existing.width == 2 && x + 1 < width && zIndex >= existing.zIndex) {
+            val continuation = cells[y][x + 1]
+            if (continuation.isContinuation && continuation.zIndex == existing.zIndex) {
+                cells[y][x + 1] = Cell()
+            }
+        }
         if (x - 1 >= 0) {
             val left = cells[y][x - 1]
             if (left.width == 2 && zIndex >= left.zIndex) {
-                cells[y][x - 1] = Cell(style = left.style, zIndex = left.zIndex)
+                cells[y][x - 1] = Cell()
             }
         }
         if (w == 2) {
@@ -102,7 +119,7 @@ class RenderBuffer(width: Int, height: Int) {
                 if (r.width == 2 && x + 2 < width) {
                     val far = cells[y][x + 2]
                     if (far.isContinuation && zIndex >= far.zIndex) {
-                        cells[y][x + 2] = Cell(style = far.style, zIndex = far.zIndex)
+                        cells[y][x + 2] = Cell()
                     }
                 }
             }
@@ -112,40 +129,11 @@ class RenderBuffer(width: Int, height: Int) {
     fun writeString(x: Int, y: Int, text: String, style: Style, zIndex: Int) {
         if (y < 0 || y >= height) return
         var cursorX = x
-        val sb = StringBuilder()
-        var pendingCp = -1
-        var pendingWidth = 0
-
-        fun flushPending() {
-            if (pendingCp >= 0) {
-                setGrapheme(cursorX, y, sb.toString(), pendingWidth, style, zIndex)
-                cursorX += if (pendingWidth == 0) 0 else pendingWidth
-                sb.clear()
-                pendingCp = -1
-                pendingWidth = 0
+        text.forEachTerminalGrapheme { start, end, graphemeWidth ->
+            if (graphemeWidth > 0) {
+                setGrapheme(cursorX, y, text.substring(start, end), graphemeWidth, style, zIndex)
             }
-        }
-
-        text.forEachCodePoint { cp, w, _ ->
-            if (w == 0 && pendingCp >= 0) {
-                appendCodePoint(sb, cp)
-            } else {
-                flushPending()
-                appendCodePoint(sb, cp)
-                pendingCp = cp
-                pendingWidth = w
-            }
-        }
-        flushPending()
-    }
-
-    private fun appendCodePoint(sb: StringBuilder, cp: Int) {
-        if (cp <= 0xFFFF) {
-            sb.append(cp.toChar())
-        } else {
-            val offset = cp - 0x10000
-            sb.append((0xD800 + (offset shr 10)).toChar())
-            sb.append((0xDC00 + (offset and 0x3FF)).toChar())
+            cursorX += graphemeWidth
         }
     }
 
@@ -171,21 +159,33 @@ class RenderBuffer(width: Int, height: Int) {
      * whether to additionally paint a fallback string depending on whether the
      * terminal supports sixel.
      */
-    fun placeImage(x: Int, y: Int, image: TerminalImage, zIndex: Int) {
+    fun placeImage(x: Int, y: Int, image: TerminalImage, zIndex: Int): Boolean {
         val w = image.cellWidth
         val h = image.cellHeight
+        if (x < 0 || y < 0 ||
+            x.toLong() + w.toLong() > width.toLong() ||
+            y.toLong() + h.toLong() > height.toLong()
+        ) return false
+        var blocked = false
         for (dy in 0 until h) {
             val cy = y + dy
-            if (cy < 0 || cy >= height) continue
             for (dx in 0 until w) {
                 val cx = x + dx
-                if (cx < 0 || cx >= width) continue
-                if (zIndex < cells[cy][cx].zIndex) continue
+                if (zIndex < cells[cy][cx].zIndex) blocked = true
+            }
+        }
+        if (blocked) return false
+        for (dy in 0 until h) {
+            val cy = y + dy
+            for (dx in 0 until w) {
+                val cx = x + dx
+                clearOverlap(cx, cy, 1, zIndex)
                 cells[cy][cx] = Cell(content = " ", zIndex = zIndex)
             }
         }
         placements.add(ImagePlacement(x, y, w, h, image, zIndex))
+        return true
     }
 
-    fun imagePlacements(): List<ImagePlacement> = placements
+    fun imagePlacements(): List<ImagePlacement> = placements.toList()
 }

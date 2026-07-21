@@ -13,7 +13,7 @@ fun Text(text: String, modifier: Modifier = Modifier) {
         factory = { TuiNode("Text").apply { layoutPolicy = LayoutPolicy.LEAF; preferredHeight = 1 } },
         update = {
             set(text) { this.text = it }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         }
     )
 }

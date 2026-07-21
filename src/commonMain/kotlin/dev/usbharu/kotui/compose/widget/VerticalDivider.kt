@@ -6,6 +6,7 @@ import dev.usbharu.kotui.compose.applier.TuiApplier
 import dev.usbharu.kotui.compose.modifier.Modifier
 import dev.usbharu.kotui.compose.node.LayoutPolicy
 import dev.usbharu.kotui.compose.node.TuiNode
+import dev.usbharu.kotui.utils.displayWidth
 
 /**
  * 垂直の区切り線。親 `Row` の高さに合わせて自動的に伸びる。
@@ -16,11 +17,14 @@ import dev.usbharu.kotui.compose.node.TuiNode
  */
 @Composable
 fun VerticalDivider(char: Char = '│', modifier: Modifier = Modifier) {
+    val charWidth = char.toString().displayWidth()
+    require(charWidth > 0) { "divider character must be visible" }
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("VerticalDivider").apply { layoutPolicy = LayoutPolicy.LEAF; preferredWidth = 1 } },
         update = {
             set(char) { fillChar = it }
-            set(modifier) { applyModifier(it) }
+            set(charWidth) { preferredWidth = it }
+            reconcile { applyModifier(modifier) }
         }
     )
 }

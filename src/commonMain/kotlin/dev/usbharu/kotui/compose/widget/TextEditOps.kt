@@ -1,47 +1,32 @@
 package dev.usbharu.kotui.compose.widget
 
+import dev.usbharu.kotui.utils.nextTerminalGraphemeBoundary
+import dev.usbharu.kotui.utils.previousTerminalGraphemeBoundary
+import dev.usbharu.kotui.utils.terminalGraphemeStart
+
 /**
  * Pure text-editing helpers shared by [TextInput] and tests. All indices are UTF-16
- * char indices (as returned by [String.length]), constrained to code-point boundaries.
- * Wide code points and surrogate pairs are moved as a single unit.
+ * char indices (as returned by [String.length]), constrained to terminal grapheme boundaries.
+ * Surrogate pairs, combining sequences, emoji modifiers, flags, and ZWJ sequences move as one unit.
  */
 internal object TextEditOps {
 
     fun clampToBoundary(value: String, index: Int): Int {
-        val i = index.coerceIn(0, value.length)
-        if (i in 1 until value.length && value[i].isLowSurrogate() && value[i - 1].isHighSurrogate()) {
-            return i - 1
-        }
-        return i
+        return value.terminalGraphemeStart(index)
     }
 
     fun nextCodePoint(value: String, index: Int): Int {
-        if (index >= value.length) return value.length
-        val c = value[index]
-        return if (c.isHighSurrogate() && index + 1 < value.length && value[index + 1].isLowSurrogate()) {
-            index + 2
-        } else {
-            index + 1
-        }
+        return value.nextTerminalGraphemeBoundary(index)
     }
 
     fun prevCodePoint(value: String, index: Int): Int {
-        if (index <= 0) return 0
-        val c = value[index - 1]
-        return if (c.isLowSurrogate() && index - 2 >= 0 && value[index - 2].isHighSurrogate()) {
-            index - 2
-        } else {
-            index - 1
-        }
+        return value.previousTerminalGraphemeBoundary(index)
     }
 
     // Word = run of [A-Za-z0-9_]. Non-ASCII letters (incl. CJK) are treated as single-cp words.
     private fun isWordChar(cp: Int): Boolean {
-        if (cp in 'a'.code..'z'.code) return true
-        if (cp in 'A'.code..'Z'.code) return true
-        if (cp in '0'.code..'9'.code) return true
         if (cp == '_'.code) return true
-        return false
+        return cp <= Char.MAX_VALUE.code && cp.toChar().isLetterOrDigit()
     }
 
     private fun codePointAt(value: String, index: Int): Int {
@@ -54,7 +39,7 @@ internal object TextEditOps {
     }
 
     fun nextWordBoundary(value: String, from: Int): Int {
-        var i = from
+        var i = clampToBoundary(value, from)
         // Skip any run of non-word chars.
         while (i < value.length && !isWordChar(codePointAt(value, i))) {
             i = nextCodePoint(value, i)
@@ -67,7 +52,7 @@ internal object TextEditOps {
     }
 
     fun prevWordBoundary(value: String, from: Int): Int {
-        var i = from
+        var i = clampToBoundary(value, from)
         // Skip non-word chars going left.
         while (i > 0) {
             val prev = prevCodePoint(value, i)
@@ -86,12 +71,12 @@ internal object TextEditOps {
     /** Returns (newValue, newCursor). Replaces [selection] (if non-null) with [insert]. */
     fun replace(value: String, cursor: Int, selection: IntRange?, insert: String): Pair<String, Int> {
         return if (selection != null) {
-            val start = selection.first.coerceIn(0, value.length)
-            val end = selection.last.coerceIn(start, value.length)
+            val start = clampToBoundary(value, selection.first)
+            val end = clampToBoundary(value, selection.last).coerceAtLeast(start)
             val newValue = value.substring(0, start) + insert + value.substring(end)
             newValue to (start + insert.length)
         } else {
-            val c = cursor.coerceIn(0, value.length)
+            val c = clampToBoundary(value, cursor)
             val newValue = value.substring(0, c) + insert + value.substring(c)
             newValue to (c + insert.length)
         }
@@ -109,8 +94,8 @@ internal object TextEditOps {
     }
 
     fun deleteRange(value: String, start: Int, end: Int): Pair<String, Int> {
-        val s = start.coerceAtLeast(0).coerceAtMost(value.length)
-        val e = end.coerceAtLeast(s).coerceAtMost(value.length)
+        val s = clampToBoundary(value, start)
+        val e = clampToBoundary(value, end).coerceAtLeast(s)
         return value.substring(0, s) + value.substring(e) to s
     }
 }

@@ -43,23 +43,38 @@ private data class GapMod(val g: Int) : Modifier.Element { override fun apply(no
 private data class FlexGrowMod(val v: Float) : Modifier.Element { override fun apply(node: TuiNode) { node.flexGrow = v } }
 private data class FlexBasisMod(val v: Int) : Modifier.Element { override fun apply(node: TuiNode) { node.flexBasis = v } }
 private data class OffsetMod(val x: Int, val y: Int) : Modifier.Element {
-    override fun apply(node: TuiNode) { node.bounds = Rect(x, y, node.bounds.width, node.bounds.height) }
+    override fun apply(node: TuiNode) { node.applyOffset(x, y) }
 }
 private data class KeyEventMod(val handler: (KeyEvent) -> Boolean) : Modifier.Element {
     override fun apply(node: TuiNode) { node.onKeyEvent = handler }
 }
 
-fun Modifier.width(n: Int): Modifier = then(WidthMod(n))
-fun Modifier.height(n: Int): Modifier = then(HeightMod(n))
+fun Modifier.width(n: Int): Modifier {
+    require(n >= 0) { "width must be non-negative" }
+    return then(WidthMod(n))
+}
+fun Modifier.height(n: Int): Modifier {
+    require(n >= 0) { "height must be non-negative" }
+    return then(HeightMod(n))
+}
 fun Modifier.size(w: Int, h: Int): Modifier = width(w).height(h)
 fun Modifier.style(style: Style): Modifier = then(StyleMod(style))
 fun Modifier.focusedStyle(style: Style): Modifier = then(FocusedStyleMod(style))
 fun Modifier.focusable(): Modifier = then(FocusableMod)
 fun Modifier.focusScope(): Modifier = then(FocusScopeMod)
 fun Modifier.zIndex(n: Int): Modifier = then(ZIndexMod(n))
-fun Modifier.gap(n: Int): Modifier = then(GapMod(n))
-fun Modifier.weight(value: Float): Modifier = then(FlexGrowMod(value))
-fun Modifier.flexGrow(value: Float): Modifier = then(FlexGrowMod(value))
-fun Modifier.flexBasis(size: Int): Modifier = then(FlexBasisMod(size))
+fun Modifier.gap(n: Int): Modifier {
+    require(n >= 0) { "gap must be non-negative" }
+    return then(GapMod(n))
+}
+fun Modifier.weight(value: Float): Modifier = flexGrow(value)
+fun Modifier.flexGrow(value: Float): Modifier {
+    require(value.isFinite() && value >= 0f) { "flex grow must be finite and non-negative" }
+    return then(FlexGrowMod(value))
+}
+fun Modifier.flexBasis(size: Int): Modifier {
+    require(size >= 0) { "flex basis must be non-negative" }
+    return then(FlexBasisMod(size))
+}
 fun Modifier.offset(x: Int, y: Int): Modifier = then(OffsetMod(x, y))
 fun Modifier.onKeyEvent(handler: (KeyEvent) -> Boolean): Modifier = then(KeyEventMod(handler))

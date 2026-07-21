@@ -6,6 +6,33 @@ import kotlin.test.assertTrue
 
 class CharWidthTest {
     @Test
+    fun scriptCombiningMarksRemainAttachedToRenderedBase() {
+        val text = "कि"
+        var cluster = ""
+        var count = 0
+
+        text.forEachTerminalGrapheme { start, end, _ ->
+            cluster += text.substring(start, end)
+            count++
+        }
+
+        assertEquals(text, cluster)
+        assertEquals(1, count)
+    }
+
+    @Test
+    fun emojiTagSequenceIsOneTerminalGrapheme() {
+        val scotland = "🏴\uDB40\uDC67\uDB40\uDC62\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74\uDB40\uDC7F"
+        var count = 0
+        var end = 0
+
+        scotland.forEachTerminalGrapheme { _, clusterEnd, _ -> count++; end = clusterEnd }
+
+        assertEquals(1, count)
+        assertEquals(scotland.length, end)
+    }
+
+    @Test
     fun asciiWidth() {
         assertEquals(5, "hello".displayWidth())
         assertEquals(0, "".displayWidth())
@@ -80,11 +107,35 @@ class CharWidthTest {
 
     @Test
     fun displayWidthIgnoresVariationSelector() {
-        // "☺" + VS16 -> width 1 (base) + 0 (VS16) = 1
-        // but a typical terminal treats ☺️ as wide; we undercount here, which matches our "known limitation"
         val s = "\u263A\uFE0F"
-        val width = s.displayWidth()
-        assertTrue(width == 1 || width == 2, "got $width")
+        assertEquals(2, s.displayWidth())
+    }
+
+    @Test
+    fun joinedAndModifiedEmojiOccupyOneWideGlyph() {
+        assertEquals(2, "👨‍👩‍👧‍👦".displayWidth())
+        assertEquals(2, "👍🏽".displayWidth())
+        assertEquals(4, "a👍🏽b".displayWidth())
+    }
+
+    @Test
+    fun flagAndKeycapSequencesOccupyOneWideGlyph() {
+        assertEquals(2, "🇯🇵".displayWidth())
+        assertEquals(2, "1️⃣".displayWidth())
+    }
+
+    @Test
+    fun truncationNeverSplitsTerminalGraphemeCluster() {
+        val family = "👨‍👩‍👧‍👦"
+        assertEquals("", family.takeDisplayWidth(1))
+        assertEquals(family, family.takeDisplayWidth(2))
+        assertEquals("🇯🇵", "🇯🇵x".takeDisplayWidth(2))
+    }
+
+    @Test
+    fun wideOrZeroWidthPaddingStillReachesExactRequestedWidth() {
+        assertEquals(5, "a".padDisplayEnd(5, '界').displayWidth())
+        assertEquals(4, "a".padDisplayEnd(4, '\u0301').displayWidth())
     }
 
     @Test

@@ -14,6 +14,7 @@ import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.CancellationException
 import platform.CoreFoundation.CFDataCreate
 import platform.CoreFoundation.CFRelease
 import platform.CoreGraphics.CGBitmapContextCreate
@@ -52,6 +53,7 @@ internal actual fun loadImage(
             }
         }
     } catch (t: Throwable) {
+        if (t is CancellationException) throw t
         emit(ImageLoadState.Failure(t.message ?: t::class.simpleName ?: "unknown"))
     }
 }
@@ -94,6 +96,7 @@ private fun decodeWithCoreGraphics(bytes: ByteArray, maxW: Int?, maxH: Int?): De
                     val target = computeTargetSize(origW, origH, maxW, maxH)
                     val finalW = target.width
                     val finalH = target.height
+                    if (finalW.toLong() * finalH.toLong() > Int.MAX_VALUE / 4L) return@usePinned null
                     val stride = finalW * 4
 
                     val colorSpace = CGColorSpaceCreateDeviceRGB() ?: return@usePinned null
@@ -127,6 +130,7 @@ private fun decodeWithCoreGraphics(bytes: ByteArray, maxW: Int?, maxH: Int?): De
                             val srcY = finalH - 1 - y
                             buffer.copyInto(flipped, y * stride, srcY * stride, srcY * stride + stride)
                         }
+                        unpremultiplyRgbaInPlace(flipped)
                         DecodedRgba(flipped, finalW, finalH)
                     } finally {
                         CFRelease(colorSpace)

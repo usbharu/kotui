@@ -35,14 +35,13 @@ fun <T> SelectableList(
     }
 
     val scrollState = remember { mutableStateOf(0) }
-    val viewport = ListWidgetOps.viewport(items.size, selectedIndex, visibleRows, scrollState.value)
-    val rows = viewport.rows
-    val clampedSelected = viewport.selectedIndex
+    val clampedSelected = selectedIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
+    val viewport = calculateListWindow(items.size, clampedSelected, visibleRows, scrollState.value)
     if (viewport.scroll != scrollState.value) scrollState.value = viewport.scroll
 
     val keyHandler: (KeyEvent) -> Boolean = handler@{ ev ->
         if (items.isEmpty()) return@handler false
-        val moved = ListWidgetOps.singleSelectMove(ev, clampedSelected, items.size, rows)
+        val moved = ListWidgetOps.singleSelectMove(ev, clampedSelected, items.size, viewport.rows)
         when {
             moved != null -> {
                 onSelectedIndexChange(moved)
@@ -65,15 +64,15 @@ fun <T> SelectableList(
         },
         update = {
             set(focusId) { this.focusId = it }
-            set(rows) { preferredHeight = it }
+            set(viewport.rows) { preferredHeight = it }
             set(keyHandler) { onKeyEvent = it }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         },
         content = {
             if (items.isEmpty()) {
                 Text("  (empty)", Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK)))
             } else {
-                for (i in viewport.scroll until viewport.end) {
+                for (i in viewport.scroll until viewport.endExclusive) {
                     val isCursor = i == clampedSelected
                     val prefix = ListWidgetOps.selectedPrefix(isCursor, isFocused)
                     val rowStyle = ListWidgetOps.selectedStyle(isCursor, isFocused)
@@ -101,26 +100,22 @@ fun <T> MultiSelectList(
     val isFocused = focusManager.isFocused(focusId)
 
     val scrollState = remember { mutableStateOf(0) }
-    val viewport = ListWidgetOps.viewport(items.size, cursorIndex, visibleRows, scrollState.value)
-    val rows = viewport.rows
-    val clampedCursor = viewport.selectedIndex
+    val clampedCursor = cursorIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
+    val viewport = calculateListWindow(items.size, clampedCursor, visibleRows, scrollState.value)
     if (viewport.scroll != scrollState.value) scrollState.value = viewport.scroll
+    val validChecked = validCheckedIndices(checkedIndices, items.size)
+    if (validChecked != checkedIndices) {
+        LaunchedEffect(checkedIndices, items.size) { onCheckedIndicesChange(validChecked) }
+    }
 
     val keyHandler: (KeyEvent) -> Boolean = handler@{ ev ->
         if (items.isEmpty()) return@handler false
-        val moved = ListWidgetOps.singleSelectMove(ev, clampedCursor, items.size, rows)
+        val moved = ListWidgetOps.singleSelectMove(ev, clampedCursor, items.size, viewport.rows)
         when {
-            moved != null -> {
-                onCursorIndexChange(moved)
-                true
-            }
-            ev.key == Key.ENTER -> {
-                onActivate?.invoke(clampedCursor, items[clampedCursor])
-                onActivate != null
-            }
+            moved != null -> { onCursorIndexChange(moved); true }
+            ev.key == Key.ENTER -> { onActivate?.invoke(clampedCursor, items[clampedCursor]); onActivate != null }
             InteractiveWidgetOps.isPlainSpace(ev) -> {
-                val next = ListWidgetOps.toggledCheckedIndices(checkedIndices, clampedCursor)
-                onCheckedIndicesChange(next)
+                onCheckedIndicesChange(ListWidgetOps.toggledCheckedIndices(validChecked, clampedCursor))
                 true
             }
             ev.key == Key.CHAR && ev.ctrl -> when (ev.char) {
@@ -141,18 +136,18 @@ fun <T> MultiSelectList(
         },
         update = {
             set(focusId) { this.focusId = it }
-            set(rows) { preferredHeight = it }
+            set(viewport.rows) { preferredHeight = it }
             set(keyHandler) { onKeyEvent = it }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         },
         content = {
             if (items.isEmpty()) {
                 Text("  (empty)", Modifier.style(Style(fg = Ansi.FG_BRIGHT_BLACK)))
             } else {
-                for (i in viewport.scroll until viewport.end) {
+                for (i in viewport.scroll until viewport.endExclusive) {
                     val isCursor = i == clampedCursor
                     val cursorMark = ListWidgetOps.multiCursorMark(isCursor, isFocused)
-                    val checkMark = ListWidgetOps.checkMark(i in checkedIndices)
+                    val checkMark = ListWidgetOps.checkMark(i in validChecked)
                     val rowStyle = ListWidgetOps.selectedStyle(isCursor, isFocused)
                     Text("$cursorMark $checkMark ${itemLabel(items[i])}", Modifier.style(rowStyle))
                 }

@@ -2,8 +2,8 @@ package dev.usbharu.kotui
 
 import dev.usbharu.kotui.compose.runtime.AnsiKeyDecoder
 import dev.usbharu.kotui.compose.runtime.InputEvent
+import dev.usbharu.kotui.compose.runtime.Utf8ByteDecoder
 import java.io.BufferedReader
-import java.io.InputStream
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
@@ -69,6 +69,7 @@ private const val ESC_POLL_MS = 5L
 
 actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
     val decoder = AnsiKeyDecoder()
+    val utf8 = Utf8ByteDecoder()
     val input = System.`in`
 
     fun emit(events: List<InputEvent>): Boolean {
@@ -78,8 +79,13 @@ actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
         return true
     }
 
+    fun emitDecoded(text: String): Boolean {
+        for (ch in text) if (!emit(decoder.feed(ch))) return false
+        return true
+    }
+
     while (true) {
-        if (decoder.hasPending()) {
+        if (decoder.hasPending() || utf8.hasPending()) {
             // Wait briefly for continuation bytes. If none arrive, flush pending state
             // (disambiguates ESC alone from ESC-initiated sequences).
             var waited = 0L
@@ -88,12 +94,18 @@ actual fun onInputEvent(onEvent: (InputEvent) -> Boolean) {
                 waited += ESC_POLL_MS
             }
             if (input.available() == 0) {
+                if (!emitDecoded(utf8.flush())) return
                 if (!emit(decoder.flush())) return
                 continue
             }
         }
-        val ch = readUtf8Char(input) ?: break
-        if (!emit(decoder.feed(ch))) return
+        val byte = input.read()
+        if (byte < 0) {
+            if (!emitDecoded(utf8.flush())) return
+            emit(decoder.flush())
+            return
+        }
+        if (!emitDecoded(utf8.feed(byte))) return
     }
 }
 
@@ -107,14 +119,7 @@ actual fun terminalSize(): TerminalSize? {
         val out = BufferedReader(InputStreamReader(proc.inputStream)).use { it.readLine()?.trim() }
         proc.waitFor()
         if (!out.isNullOrEmpty()) {
-            val parts = out.split(" ")
-            if (parts.size == 2) {
-                val rows = parts[0].toIntOrNull()
-                val cols = parts[1].toIntOrNull()
-                if (rows != null && cols != null && rows > 0 && cols > 0) {
-                    return TerminalSize(cols, rows)
-                }
-            }
+            parseTerminalSizeOutput(out)?.let { return it }
         }
     }
     // Fallback: environment variables exposed by some shells.
@@ -126,19 +131,11 @@ actual fun terminalSize(): TerminalSize? {
     return null
 }
 
-private fun readUtf8Char(input: InputStream): Char? {
-    val b = input.read()
-    if (b == -1) return null
-    if (b < 0x80) return b.toChar()
-    val len = when {
-        b and 0xE0 == 0xC0 -> 2
-        b and 0xF0 == 0xE0 -> 3
-        b and 0xF8 == 0xF0 -> 4
-        else -> 1
-    }
-    if (len == 1) return b.toChar()
-    val bytes = ByteArray(len)
-    bytes[0] = b.toByte()
-    for (i in 1 until len) bytes[i] = input.read().toByte()
-    return bytes.decodeToString()[0]
+internal fun parseTerminalSizeOutput(output: String): TerminalSize? {
+    val parts = output.trim().split(Regex("\\s+"))
+    if (parts.size != 2) return null
+    val rows = parts[0].toIntOrNull() ?: return null
+    val cols = parts[1].toIntOrNull() ?: return null
+    if (rows <= 0 || cols <= 0) return null
+    return TerminalSize(cols, rows)
 }

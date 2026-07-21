@@ -50,5 +50,6 @@ class KittyTest {
     fun rejectsInvalidInput() {
         assertFailsWith<IllegalArgumentException> { Kitty.encode(ByteArray(16), 0, 2) }
         assertFailsWith<IllegalArgumentException> { Kitty.encode(ByteArray(4), 2, 2) }
+        assertFailsWith<IllegalArgumentException> { Kitty.encode(ByteArray(4), Int.MAX_VALUE, Int.MAX_VALUE) }
     }
 }

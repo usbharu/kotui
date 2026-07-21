@@ -2,6 +2,7 @@ package dev.usbharu.kotui.image
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class TargetSizeTest {
 
@@ -31,5 +32,23 @@ class TargetSizeTest {
         val t = computeTargetSize(300, 300, maxWidth = 0, maxHeight = -1)
         assertEquals(300, t.width)
         assertEquals(300, t.height)
+    }
+
+    @Test
+    fun rejects_non_positive_source_dimensions() {
+        assertFailsWith<IllegalArgumentException> { computeTargetSize(0, 10, 5, 5) }
+        assertFailsWith<IllegalArgumentException> { computeTargetSize(10, -1, 5, 5) }
+    }
+
+    @Test
+    fun cell_count_ceiling_division_does_not_overflow() {
+        assertEquals(Int.MAX_VALUE, cellCountForPixels(Int.MAX_VALUE, 1))
+        assertEquals(1, cellCountForPixels(Int.MAX_VALUE, Int.MAX_VALUE))
+    }
+
+    @Test
+    fun cell_count_rejects_non_positive_inputs() {
+        assertFailsWith<IllegalArgumentException> { cellCountForPixels(0, 1) }
+        assertFailsWith<IllegalArgumentException> { cellCountForPixels(1, 0) }
     }
 }

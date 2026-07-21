@@ -25,15 +25,10 @@ fun Button(label: String, modifier: Modifier = Modifier, onClick: () -> Unit = {
             set(onClick) { callback ->
                 onActivate = callback
                 onKeyEvent = { event ->
-                    if (InteractiveWidgetOps.buttonAccepts(event)) {
-                        callback()
-                        true
-                    } else {
-                        false
-                    }
+                    if (InteractiveWidgetOps.buttonAccepts(event)) { callback(); true } else false
                 }
             }
-            set(focusStyled) { applyModifier(it) }
+            reconcile { applyModifier(focusStyled) }
         }
     )
 }

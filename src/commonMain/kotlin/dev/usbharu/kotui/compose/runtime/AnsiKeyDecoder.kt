@@ -14,6 +14,9 @@ package dev.usbharu.kotui.compose.runtime
  * further input arrives within a short timeout.
  */
 class AnsiKeyDecoder {
+    private companion object {
+        const val MAX_CSI_BYTES = 64
+    }
     private enum class State { IDLE, ESC, CSI, SS3, PASTE }
 
     private var state = State.IDLE
@@ -35,15 +38,21 @@ class AnsiKeyDecoder {
         when (state) {
             State.ESC -> out += KeyEvent('\u001B', Key.ESCAPE)
             State.CSI -> {
-                // Incomplete CSI: surface as raw ESCAPE and discard buffer
                 out += KeyEvent('\u001B', Key.ESCAPE)
+                out += KeyEvent('[', Key.CHAR)
+                csiBuf.forEach { handleIdle(it, out) }
                 csiBuf.clear()
             }
-            State.SS3 -> out += KeyEvent('\u001B', Key.ESCAPE)
+            State.SS3 -> {
+                out += KeyEvent('\u001B', Key.ESCAPE)
+                out += KeyEvent('O', Key.CHAR)
+            }
             State.PASTE -> {
                 // Incomplete paste: emit whatever we have
+                if (csiBuf.isNotEmpty()) pasteBuf.append(csiBuf)
                 if (pasteBuf.isNotEmpty()) out += PasteEvent(pasteBuf.toString())
                 pasteBuf.clear()
+                csiBuf.clear()
             }
             State.IDLE -> Unit
         }
@@ -69,6 +78,8 @@ class AnsiKeyDecoder {
     private fun handleIdle(ch: Char, out: MutableList<InputEvent>) {
         when (ch) {
             '\u001B' -> state = State.ESC
+            '\u009B' -> { state = State.CSI; csiBuf.clear() }
+            '\u008F' -> state = State.SS3
             '\t' -> out += KeyEvent(ch, Key.TAB)
             '\r' -> {
                 out += KeyEvent(ch, Key.ENTER)
@@ -78,10 +89,14 @@ class AnsiKeyDecoder {
             '\u007F', '\b' -> out += KeyEvent(ch, Key.BACKSPACE)
             else -> {
                 val code = ch.code
-                if (code in 0x01..0x1A) {
+                if (code == 0) {
+                    out += KeyEvent(' ', Key.CHAR, ctrl = true)
+                } else if (code in 0x01..0x1A) {
                     // Ctrl+A..Z (excluding \t, \r which are handled above)
                     val letter = ('a' + (code - 1))
                     out += KeyEvent(letter, Key.CHAR, ctrl = true)
+                } else if (code in 0x1C..0x1F) {
+                    out += KeyEvent("\\]^_"[code - 0x1C], Key.CHAR, ctrl = true)
                 } else {
                     out += KeyEvent(ch, Key.CHAR)
                 }
@@ -99,12 +114,19 @@ class AnsiKeyDecoder {
                 state = State.ESC
             }
             else -> {
-                // ESC + char = Alt+char. For lowercase letter we set alt=true.
                 state = State.IDLE
                 val code = ch.code
-                if (code in 0x01..0x1A) {
+                if (ch == '\u0000') {
+                    out += KeyEvent(' ', Key.CHAR, ctrl = true, alt = true)
+                } else if (ch == '\t') {
+                    out += KeyEvent(ch, Key.TAB, alt = true)
+                } else if (ch == '\r' || ch == '\n') {
+                    out += KeyEvent(ch, Key.ENTER, alt = true)
+                } else if (code in 0x01..0x1A) {
                     val letter = ('a' + (code - 1))
                     out += KeyEvent(letter, Key.CHAR, ctrl = true, alt = true)
+                } else if (code in 0x1C..0x1F) {
+                    out += KeyEvent("\\]^_"[code - 0x1C], Key.CHAR, ctrl = true, alt = true)
                 } else if (ch == '\u007F' || ch == '\b') {
                     out += KeyEvent(ch, Key.BACKSPACE, alt = true)
                 } else {
@@ -115,14 +137,36 @@ class AnsiKeyDecoder {
     }
 
     private fun handleCsi(ch: Char, out: MutableList<InputEvent>) {
-        // Intermediate: digits, ';', '?', etc. Final: letter or '~'.
-        if (ch in '0'..'9' || ch == ';' || ch == '?') {
+        // ECMA-48: parameter bytes 0x30..0x3F and intermediate bytes 0x20..0x2F
+        // are part of the sequence; only 0x40..0x7E terminates it.
+        if (ch.code in 0x20..0x3F) {
             csiBuf.append(ch)
+            if (csiBuf.length > MAX_CSI_BYTES) {
+                out += KeyEvent('\u001B', Key.ESCAPE)
+                out += KeyEvent('[', Key.CHAR)
+                csiBuf.forEach { handleIdle(it, out) }
+                csiBuf.clear()
+                state = State.IDLE
+            }
+            return
+        }
+        if (ch.code !in 0x40..0x7E) {
+            out += KeyEvent('\u001B', Key.ESCAPE)
+            out += KeyEvent('[', Key.CHAR)
+            csiBuf.forEach { handleIdle(it, out) }
+            csiBuf.clear()
+            state = State.IDLE
+            handleIdle(ch, out)
             return
         }
         val params = parseCsiParams(csiBuf.toString())
         csiBuf.clear()
         state = State.IDLE
+
+        if (params == null) {
+            if (ch in "ABCDHFZ~") out += KeyEvent('\u0000', Key.UNKNOWN)
+            return
+        }
 
         // Detect bracketed paste start/end: ESC[200~ / ESC[201~
         if (ch == '~' && params.size == 1) {
@@ -134,13 +178,17 @@ class AnsiKeyDecoder {
 
         val (keyParam, modParam) = when {
             params.isEmpty() -> 1 to 1
-            params.size == 1 -> params[0] to 1
-            else -> params[0] to params[1]
+            params.size == 1 -> (params[0].takeIf { it > 0 } ?: 1) to 1
+            else -> (params[0].takeIf { it > 0 } ?: 1) to (params[1].takeIf { it > 0 } ?: 1)
+        }
+        if (modParam !in 1..8) {
+            out += KeyEvent('\u0000', Key.UNKNOWN)
+            return
         }
         val normalizedModParam = modParam.takeIf { it > 0 } ?: 1
         val ctrl = (normalizedModParam - 1) and 0b100 != 0
         val alt = (normalizedModParam - 1) and 0b010 != 0
-        val shift = (normalizedModParam - 1) and 0b001 != 0
+        val shift = ch == 'Z' || (normalizedModParam - 1) and 0b001 != 0
 
         val key = when (ch) {
             'A' -> Key.ARROW_UP
@@ -149,6 +197,7 @@ class AnsiKeyDecoder {
             'D' -> Key.ARROW_LEFT
             'H' -> Key.HOME
             'F' -> Key.END
+            'Z' -> Key.TAB
             '~' -> when (keyParam) {
                 1, 7 -> Key.HOME
                 2 -> Key.UNKNOWN // Insert — not modelled
@@ -160,9 +209,7 @@ class AnsiKeyDecoder {
             }
             else -> Key.UNKNOWN
         }
-        if (key != Key.UNKNOWN) {
-            out += KeyEvent('\u0000', key, ctrl = ctrl, shift = shift, alt = alt)
-        }
+        out += KeyEvent('\u0000', key, ctrl = ctrl, shift = shift, alt = alt)
     }
 
     private fun handleSs3(ch: Char, out: MutableList<InputEvent>) {
@@ -176,15 +223,14 @@ class AnsiKeyDecoder {
             'F' -> Key.END
             else -> Key.UNKNOWN
         }
-        if (key != Key.UNKNOWN) {
-            out += KeyEvent('\u0000', key)
-        }
+        out += KeyEvent('\u0000', key)
     }
 
     private fun handlePaste(ch: Char, out: MutableList<InputEvent>) {
         // Look for ESC[201~ terminator. We scan the buffer lazily: once we see ESC,
         // switch into a small paste-escape state via csiBuf reuse.
         if (ch == '\u001B') {
+            if (csiBuf.isNotEmpty()) pasteBuf.append(csiBuf)
             // Begin watching for terminator. Use csiBuf as scratch starting from "^[".
             csiBuf.clear()
             csiBuf.append('\u001B')
@@ -205,17 +251,28 @@ class AnsiKeyDecoder {
                 return
             }
             // Mismatch: treat buffered bytes as literal paste content
-            pasteBuf.append(s)
-            csiBuf.clear()
+            if (s.last() == '\u001B') {
+                pasteBuf.append(s.dropLast(1))
+                csiBuf.clear()
+                csiBuf.append('\u001B')
+            } else {
+                pasteBuf.append(s)
+                csiBuf.clear()
+            }
             return
         }
         pasteBuf.append(ch)
     }
 
-    private fun parseCsiParams(s: String): IntArray {
+    private fun parseCsiParams(s: String): IntArray? {
         if (s.isEmpty()) return IntArray(0)
         val cleaned = if (s.startsWith('?')) s.substring(1) else s
         if (cleaned.isEmpty()) return IntArray(0)
-        return cleaned.split(';').map { it.toIntOrNull() ?: 0 }.toIntArray()
+        val result = IntArray(cleaned.count { it == ';' } + 1)
+        for ((index, part) in cleaned.split(';').withIndex()) {
+            val primary = part.substringBefore(':')
+            result[index] = if (primary.isEmpty()) 0 else primary.toIntOrNull() ?: return null
+        }
+        return result
     }
 }

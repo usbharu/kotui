@@ -22,6 +22,10 @@ repositories {
 }
 
 kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     jvm()
     linuxX64()
     macosArm64()
@@ -51,6 +55,45 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+        }
+    }
+}
+
+dependencies {
+    kover(project(":kotui-image"))
+    kover(project(":kotui-markdown"))
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "dev.usbharu.kotui.MainKt",
+                    "dev.usbharu.kotui.Main_jvmKt",
+                    "dev.usbharu.kotui.Main_jsKt",
+                    "dev.usbharu.kotui.Main_linuxKt",
+                    "dev.usbharu.kotui.Main_macosArm64Kt",
+                    "dev.usbharu.kotui.Main_mingwX64Kt",
+                    "dev.usbharu.kotui.ComposableSingletons*",
+                    "dev.usbharu.kotui.TerminalResize*",
+                    "dev.usbharu.kotui.compose.clipboard.SystemClipboardWrite*",
+                    "dev.usbharu.kotui.compose.runtime.RunTui*",
+                    "dev.usbharu.kotui.compose.widget.*",
+                    "dev.usbharu.kotui.image.MainKt",
+                    "dev.usbharu.kotui.image.NetworkImage*",
+                    "dev.usbharu.kotui.image.TerminalImageDecoder*",
+                    "dev.usbharu.kotui.markdown.MainKt",
+                    "dev.usbharu.kotui.markdown.*",
+                    "dev.usbharu.kotui.utils.Ansi",
+                    "dev.usbharu.kotui.utils.SixelSupport*",
+                )
+            }
+        }
+        verify {
+            rule {
+                minBound(90)
+            }
         }
     }
 }

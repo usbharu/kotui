@@ -98,6 +98,69 @@ class SixelTest {
     fun `rejects invalid inputs`() {
         assertFailsWith<IllegalArgumentException> { Sixel.encode(ByteArray(16), 0, 2) }
         assertFailsWith<IllegalArgumentException> { Sixel.encode(ByteArray(4), 2, 2) }  // buffer too small
-        assertFailsWith<IllegalArgumentException> { Sixel.encode(ByteArray(16), 2, 2, maxColors = 1) }
+        assertFailsWith<IllegalArgumentException> { Sixel.encode(ByteArray(16), 2, 2, maxColors = 0) }
+        assertFailsWith<IllegalArgumentException> { Sixel.encode(ByteArray(4), Int.MAX_VALUE, Int.MAX_VALUE) }
+        assertFailsWith<IllegalArgumentException> { Sixel.encodeIndexed(intArrayOf(0), 0, 1, intArrayOf(0)) }
+        assertFailsWith<IllegalArgumentException> {
+            Sixel.encodeIndexed(intArrayOf(0), Int.MAX_VALUE, Int.MAX_VALUE, intArrayOf(0))
+        }
+        assertFailsWith<IllegalArgumentException> { Sixel.encodeIndexed(intArrayOf(0), 2, 1, intArrayOf(0)) }
+        assertFailsWith<IllegalArgumentException> { Sixel.encodeIndexed(intArrayOf(1), 1, 1, intArrayOf(0)) }
+        assertFailsWith<IllegalArgumentException> { Sixel.encodeIndexed(intArrayOf(0), 1, 1, IntArray(257)) }
+    }
+
+    @Test
+    fun `one-color palette limit is supported`() {
+        val rgba = rgbaOf(0xFF0000, 0x00FF00)
+
+        val actual = Sixel.encode(rgba, 2, 1, maxColors = 1)
+
+        assertEquals(1, Regex("#\\d+;2;").findAll(actual).count())
+    }
+
+    @Test
+    fun `quantized palette respects a small maxColors limit`() {
+        val rgba = rgbaOf(0x000000, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF)
+
+        val actual = Sixel.encode(rgba, 5, 1, maxColors = 2)
+
+        val paletteCount = Regex("#\\d+;2;").findAll(actual).count()
+        assertTrue(paletteCount in 1..2, "palette exceeds requested limit: $paletteCount")
+    }
+
+    @Test
+    fun `fully transparent rgba does not emit painted sixels`() {
+        val actual = Sixel.encode(byteArrayOf(255.toByte(), 0, 0, 0), 1, 1)
+
+        assertEquals(0, Regex("#\\d+;2;").findAll(actual).count())
+        assertTrue(!actual.contains("#0@"), "transparent pixel was painted: $actual")
+    }
+
+    @Test
+    fun `transparent colors do not consume requested palette slots`() {
+        val rgba = byteArrayOf(
+            255.toByte(), 0, 0, 0,
+            0, 255.toByte(), 0, 255.toByte(),
+            0, 0, 255.toByte(), 0,
+        )
+
+        val actual = Sixel.encode(rgba, 3, 1, maxColors = 2)
+
+        assertEquals(1, Regex("#\\d+;2;").findAll(actual).count())
+    }
+
+    @Test
+    fun `indexed encoder accepts minusOne as transparent pixel`() {
+        val actual = Sixel.encodeIndexed(intArrayOf(-1, 0), 2, 1, intArrayOf(0xFF0000))
+
+        assertTrue(actual.contains("#0?@"), "expected only second column to be painted: $actual")
+    }
+
+    @Test
+    fun `empty indexed palette is accepted only when every pixel is transparent`() {
+        Sixel.encodeIndexed(intArrayOf(-1), 1, 1, intArrayOf())
+        assertFailsWith<IllegalArgumentException> {
+            Sixel.encodeIndexed(intArrayOf(0), 1, 1, intArrayOf())
+        }
     }
 }

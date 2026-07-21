@@ -9,6 +9,7 @@ import dev.usbharu.kotui.utils.Ansi
 import dev.usbharu.kotui.utils.SixelSupport
 import dev.usbharu.kotui.utils.TerminalCaps
 import dev.usbharu.kotui.utils.takeDisplayWidth
+import dev.usbharu.kotui.utils.displayWidth
 
 class TuiRenderer(
     screenWidth: Int,
@@ -25,14 +26,14 @@ class TuiRenderer(
 
     fun resize(newWidth: Int, newHeight: Int) {
         if (newWidth == screenWidth && newHeight == screenHeight) return
+        buffer.resize(newWidth, newHeight)
         screenWidth = newWidth
         screenHeight = newHeight
-        buffer.resize(newWidth, newHeight)
     }
 
     fun render(root: TuiNode, focusManager: FocusManager) {
         buffer.clear()
-        renderNode(root, 0, focusManager)
+        renderNode(root, 0L, focusManager)
         val cursorNode = findCursorNode(root, focusManager)
         flush(cursorNode)
     }
@@ -44,24 +45,33 @@ class TuiRenderer(
      */
     internal fun renderToBuffer(root: TuiNode, focusManager: FocusManager) {
         buffer.clear()
-        renderNode(root, 0, focusManager)
+        renderNode(root, 0L, focusManager)
     }
 
-    private fun renderNode(node: TuiNode, parentZ: Int, focusManager: FocusManager) {
-        val effectiveZ = parentZ + node.zIndex
+    private fun renderNode(node: TuiNode, parentZ: Long, focusManager: FocusManager) {
+        val nodeZ = node.zIndex.toLong()
+        val effectiveZLong = when {
+            nodeZ > 0 && parentZ > Long.MAX_VALUE - nodeZ -> Long.MAX_VALUE
+            nodeZ < 0 && parentZ < Long.MIN_VALUE - nodeZ -> Long.MIN_VALUE
+            else -> parentZ + nodeZ
+        }
+        val effectiveZ = effectiveZLong.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
         val isFocused = node.focusable && focusManager.isFocused(node.focusId)
         val activeStyle = if (isFocused) (node.focusedStyle ?: node.style) else node.style
 
-        if (node.drawBorder) {
-            renderBorder(node.bounds, activeStyle, node.borderTitle, effectiveZ)
-        }
-
         node.fillChar?.let { ch ->
+            val fillWidth = ch.toString().displayWidth()
             for (yy in node.bounds.y until node.bounds.y + node.bounds.height) {
-                for (xx in node.bounds.x until node.bounds.x + node.bounds.width) {
-                    buffer.set(xx, yy, ch, activeStyle, effectiveZ)
+                var dx = 0
+                while (fillWidth > 0 && dx + fillWidth <= node.bounds.width) {
+                    buffer.setGrapheme(node.bounds.x + dx, yy, ch.toString(), fillWidth, activeStyle, effectiveZ)
+                    dx += fillWidth
                 }
             }
+        }
+
+        if (node.drawBorder) {
+            renderBorder(node.bounds, activeStyle, node.borderTitle, effectiveZ)
         }
 
         node.text?.let { text ->
@@ -73,23 +83,24 @@ class TuiRenderer(
         }
 
         node.image?.let { img ->
-            buffer.placeImage(node.bounds.x, node.bounds.y, img, effectiveZ)
+            val placed = buffer.placeImage(node.bounds.x, node.bounds.y, img, effectiveZ)
             val caps = SixelSupport.cached ?: TerminalCaps.UNSUPPORTED
-            if (!caps.kittySupported && !caps.sixelSupported) {
+            if (!placed || (!caps.kittySupported && !caps.sixelSupported)) {
                 img.fallbackText?.let { text ->
-                    val clipped = text.takeDisplayWidth(img.cellWidth)
+                    val clipped = text.takeDisplayWidth(minOf(img.cellWidth, node.bounds.width.coerceAtLeast(0)))
                     buffer.writeString(node.bounds.x, node.bounds.y, clipped, activeStyle, effectiveZ)
                 }
             }
         }
 
         for (child in node.children) {
-            renderNode(child, effectiveZ, focusManager)
+            renderNode(child, effectiveZLong, focusManager)
         }
     }
 
     private fun renderBorder(b: Rect, style: Style, title: String?, z: Int) {
         val (x, y, w, h) = b
+        if (w <= 0 || h <= 0) return
         buffer.set(x, y, '+', style, z)
         for (col in 1 until w - 1) buffer.set(x + col, y, '-', style, z)
         if (w > 1) buffer.set(x + w - 1, y, '+', style, z)
@@ -116,8 +127,12 @@ class TuiRenderer(
         val end = hl.endCol.coerceAtMost(nodeWidth)
         for (dx in start until end) {
             val x = nodeX + dx
-            val existing = buffer.get(x, nodeY)
-            if (existing.isContinuation) continue
+            var targetX = x
+            var existing = buffer.get(targetX, nodeY)
+            if (existing.isContinuation && targetX > 0) {
+                targetX--
+                existing = buffer.get(targetX, nodeY)
+            }
             val merged = base.copy(
                 fg = hl.style.fg ?: existing.style.fg ?: base.fg,
                 bg = hl.style.bg ?: existing.style.bg ?: base.bg,
@@ -127,7 +142,7 @@ class TuiRenderer(
             )
             val content = existing.content
             val width = if (existing.width == 0) 1 else existing.width
-            buffer.setGrapheme(x, nodeY, if (content.isEmpty()) " " else content, width, merged, zIndex)
+            buffer.setGrapheme(targetX, nodeY, if (content.isEmpty()) " " else content, width, merged, zIndex)
         }
     }
 
@@ -168,13 +183,21 @@ class TuiRenderer(
         }
         sb.append(Ansi.RESET)
 
-        if (caps.kittySupported || caps.sixelSupported) {
+        if ((caps.kittySupported || caps.sixelSupported) && screenWidth > 0 && screenHeight > 0) {
             for (p in buffer.imagePlacements()) {
-                // Clamp anchor into the visible viewport so terminals do not drop
-                // the entire escape when the composable happens to overflow the
-                // screen (the image itself may still be partially clipped).
-                val row = (p.y + 1).coerceIn(1, screenHeight)
-                val col = (p.x + 1).coerceIn(1, screenWidth)
+                if (p.x !in 0 until screenWidth || p.y !in 0 until screenHeight) continue
+                var unobscured = true
+                for (dy in 0 until p.cellHeight) {
+                    for (dx in 0 until p.cellWidth) {
+                        val cell = buffer.get(p.x + dx, p.y + dy)
+                        if (cell.zIndex > p.zIndex || (cell.zIndex == p.zIndex && cell.content != " ")) {
+                            unobscured = false
+                        }
+                    }
+                }
+                if (!unobscured) continue
+                val row = p.y + 1
+                val col = p.x + 1
                 sb.append(Ansi.cursorTo(row, col))
                 sb.append(Ansi.RESET)
                 if (caps.kittySupported) {
@@ -185,9 +208,11 @@ class TuiRenderer(
             }
         }
 
-        if (cursorNode != null) {
-            val col = cursorNode.bounds.x + (cursorNode.cursorCol ?: 0) + 1  // ANSI is 1-based
-            val row = cursorNode.bounds.y + (cursorNode.cursorRow ?: 0) + 1
+        if (cursorNode != null && screenWidth > 0 && screenHeight > 0) {
+            val col = (cursorNode.bounds.x.toLong() + (cursorNode.cursorCol ?: 0).toLong() + 1L)
+                .coerceIn(1L, screenWidth.toLong()).toInt()
+            val row = (cursorNode.bounds.y.toLong() + (cursorNode.cursorRow ?: 0).toLong() + 1L)
+                .coerceIn(1L, screenHeight.toLong()).toInt()
             sb.append(Ansi.cursorTo(row, col))
             sb.append(Ansi.CURSOR_SHOW)
         } else {
@@ -198,10 +223,19 @@ class TuiRenderer(
     }
 
     private fun styleToAnsi(style: Style): String = buildString {
-        style.fg?.let { append(it) }
-        style.bg?.let { append(it) }
+        style.fg?.takeIf(::isSafeSgrSequence)?.let { append(it) }
+        style.bg?.takeIf(::isSafeSgrSequence)?.let { append(it) }
         if (style.bold) append(Ansi.BOLD)
         if (style.underline) append(Ansi.UNDERLINE)
         if (style.reverse) append(Ansi.REVERSE)
+    }
+}
+
+internal fun isSafeSgrSequence(value: String): Boolean {
+    if (!value.startsWith("\u001B[") || !value.endsWith('m')) return false
+    val parameters = value.substring(2, value.length - 1)
+    if (parameters.isEmpty()) return true
+    return parameters.split(';').all { part ->
+        part.isNotEmpty() && part.length <= 3 && part.all(Char::isDigit) && (part.toIntOrNull() ?: -1) in 0..255
     }
 }

@@ -130,4 +130,22 @@ class InlineFormatTest {
         assertTrue(lines[0][0].style.reverse, "strike degrades to reverse")
         assertEquals("X", lines[0][0].style.fg)
     }
+
+    @Test
+    fun semanticLeafStylesKeepInheritedBoldFormatting() {
+        val link = AstNode.UrlNode(
+            url = AstNode.UrlUrlNode("https://example.com"),
+            urlNameNode = AstNode.UrlNameNode("site"),
+            urlTitleNode = null,
+        )
+        val lines = flattenInline(
+            nodes = listOf(AstNode.BoldNode(mutableListOf(link, AstNode.InlineCodeNode("code")))),
+            base = styles.paragraph,
+            styles = styles,
+        )
+
+        assertTrue(lines.single().all { it.style.bold })
+        assertEquals(styles.link.fg, lines.single()[0].style.fg)
+        assertEquals(styles.inlineCode.bg, lines.single()[1].style.bg)
+    }
 }

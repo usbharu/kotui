@@ -2,9 +2,11 @@ package dev.usbharu.kotui.render
 
 import dev.usbharu.kotui.compose.widget.TerminalImage
 import dev.usbharu.kotui.core.Style
+import dev.usbharu.kotui.utils.Kitty
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 class ImagePlacementTest {
     private fun solidImage(pixelW: Int, pixelH: Int, cellPxW: Int = 10, cellPxH: Int = 20): TerminalImage {
@@ -79,6 +81,70 @@ class ImagePlacementTest {
         buf.placeImage(0, 0, solidImage(20, 20), 1)
         // Cell (0,0) was at zIndex 10; the low-z image must not overwrite it.
         assertEquals("X", buf.get(0, 0).content)
-        assertTrue(buf.imagePlacements().isNotEmpty(), "placement still recorded for renderer")
+        assertTrue(buf.imagePlacements().isEmpty(), "blocked image must not be emitted over higher content")
+    }
+
+    @Test
+    fun fullyOffscreenImageIsNotRecorded() {
+        val buf = RenderBuffer(2, 2)
+
+        buf.placeImage(5, 5, solidImage(10, 20), 1)
+
+        assertTrue(buf.imagePlacements().isEmpty())
+    }
+
+    @Test
+    fun partiallyOffscreenProtocolImageIsRejectedInsteadOfRecordedButNeverFlushed() {
+        val buf = RenderBuffer(2, 2)
+
+        val placed = buf.placeImage(-1, 0, solidImage(20, 20), 1)
+
+        assertEquals(false, placed)
+        assertTrue(buf.imagePlacements().isEmpty())
+    }
+
+    @Test
+    fun imageExtendingPastViewportIsRejected() {
+        val buf = RenderBuffer(2, 2)
+
+        val placed = buf.placeImage(1, 1, solidImage(20, 40), 1)
+
+        assertEquals(false, placed)
+        assertTrue(buf.imagePlacements().isEmpty())
+    }
+
+    @Test
+    fun terminalImageRejectsOverflowingPixelBufferSize() {
+        assertFailsWith<IllegalArgumentException> {
+            TerminalImage(ByteArray(4), Int.MAX_VALUE, Int.MAX_VALUE)
+        }
+    }
+
+    @Test
+    fun placementListIsADefensiveSnapshot() {
+        val buf = RenderBuffer(2, 2)
+        buf.placeImage(0, 0, solidImage(10, 20), 0)
+        val snapshot = buf.imagePlacements()
+        buf.clear()
+
+        assertEquals(1, snapshot.size)
+        assertTrue(buf.imagePlacements().isEmpty())
+    }
+
+    @Test
+    fun terminalImageSnapshotsCallerOwnedPixelBytes() {
+        val rgba = byteArrayOf(10, 20, 30, 40)
+        val expected = Kitty.encode(rgba.copyOf(), 1, 1)
+        val image = TerminalImage(rgba, 1, 1)
+
+        rgba.fill(0)
+
+        assertEquals(expected, image.kitty)
+    }
+
+    @Test
+    fun terminalImageRejectsInvalidPaletteLimitEagerly() {
+        assertFailsWith<IllegalArgumentException> { TerminalImage(ByteArray(4), 1, 1, maxColors = 0) }
+        assertFailsWith<IllegalArgumentException> { TerminalImage(ByteArray(4), 1, 1, maxColors = 257) }
     }
 }

@@ -19,6 +19,7 @@ actual object SixelSupport {
     }
 
     actual fun detect(timeoutMillis: Long): TerminalCaps {
+        normalizedProbeTimeout(timeoutMillis)
         val env = detectCapsFromEnv { getenv(it)?.toKString() }
         val caps = mergeCaps(probe = null, env = env)
         cachedValue = caps

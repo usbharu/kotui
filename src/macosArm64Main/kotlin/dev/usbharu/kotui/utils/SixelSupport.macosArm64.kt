@@ -14,14 +14,14 @@ actual object SixelSupport {
     }
 
     actual fun detect(timeoutMillis: Long): TerminalCaps {
-        val probe = probe(timeoutMillis)
+        val probe = probe(normalizedProbeTimeout(timeoutMillis))
         val env = detectCapsFromEnv { name -> getenv(name)?.toKString() }
         val caps = mergeCaps(probe, env)
         cachedValue = caps
         return caps
     }
 
-    private fun probe(timeoutMillis: Long): TerminalCaps? {
+    private fun probe(timeoutMillis: Int): TerminalCaps? {
         if (isatty(STDIN_FILENO) == 0 || isatty(STDOUT_FILENO) == 0) return null
 
         val bytes = TERMINAL_PROBE.encodeToByteArray()
@@ -31,7 +31,7 @@ actual object SixelSupport {
 
         val buf = StringBuilder()
         var terminators = 0
-        var budget = timeoutMillis.toInt().coerceAtLeast(0)
+        var budget = timeoutMillis
         val step = 10
 
         memScoped {

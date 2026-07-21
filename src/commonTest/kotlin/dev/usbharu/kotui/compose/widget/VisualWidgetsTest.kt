@@ -5,6 +5,7 @@ import dev.usbharu.kotui.compose.node.LayoutPolicy
 import dev.usbharu.kotui.compose.node.TuiNode
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class VisualWidgetsTest {
 
@@ -42,6 +43,32 @@ class VisualWidgetsTest {
             emptyChar = '.',
         )
         assertEquals("[....]", text)
+    }
+
+    @Test
+    fun progressBarTreatsNaNAsEmptyInsteadOfLeakingInvalidPercent() {
+        val text = buildProgressText(Float.NaN, 3, true, '#', '.')
+
+        assertEquals("[...] 0%", text)
+    }
+
+    @Test
+    fun progressBarRejectsNegativeWidthAndNonCellGlyphs() {
+        assertFailsWith<IllegalArgumentException> { buildProgressText(0f, -1, false, '#', '.') }
+        assertFailsWith<IllegalArgumentException> { buildProgressText(0f, 2, false, '界', '.') }
+        assertFailsWith<IllegalArgumentException> { buildProgressText(0f, 2, false, '\u0301', '.') }
+    }
+
+    @Test
+    fun spinnerSupportsWideFramesAndNegativeFrameNumbers() {
+        assertEquals("界", spinnerFrameText(-1, listOf('x', '界')))
+        assertFailsWith<IllegalArgumentException> { spinnerFrameText(0, listOf('\u0301')) }
+    }
+
+    @Test
+    fun selectRejectsInvisibleDropdownDimensionsBeforeActivation() {
+        assertFailsWith<IllegalArgumentException> { validateSelectDimensions(0, 4) }
+        assertFailsWith<IllegalArgumentException> { validateSelectDimensions(4, -1) }
     }
 
     @Test

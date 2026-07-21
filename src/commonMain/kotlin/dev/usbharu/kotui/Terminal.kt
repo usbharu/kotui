@@ -12,7 +12,11 @@ expect fun disableRawMode()
  */
 expect fun onInputEvent(onEvent: (InputEvent) -> Boolean)
 
-data class TerminalSize(val cols: Int, val rows: Int)
+data class TerminalSize(val cols: Int, val rows: Int) {
+    init {
+        require(cols > 0 && rows > 0) { "terminal dimensions must be positive" }
+    }
+}
 
 /**
  * Returns the terminal's current column/row count, or null when the size cannot be
@@ -34,4 +38,14 @@ expect fun watchTerminalResize(onResize: (TerminalSize) -> Unit): TerminalResize
 
 interface TerminalResizeWatcher {
     fun close()
+}
+
+internal class TerminalSizeChangeTracker(initial: TerminalSize?) {
+    private var last = initial
+
+    fun changedTo(current: TerminalSize?): TerminalSize? {
+        if (current == null || current == last) return null
+        last = current
+        return current
+    }
 }

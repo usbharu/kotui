@@ -10,6 +10,10 @@ data class TerminalCaps(
     /** Terminal cell height in pixels. Defaults to 20 when the terminal does not report. */
     val cellPixelHeight: Int = 20,
 ) {
+    init {
+        require(cellPixelWidth > 0 && cellPixelHeight > 0) { "terminal cell pixel dimensions must be positive" }
+    }
+
     companion object {
         /** Safe fallback used when detection cannot be performed. */
         val UNSUPPORTED = TerminalCaps(sixelSupported = false, kittySupported = false)

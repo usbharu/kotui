@@ -34,13 +34,16 @@ class FocusManager {
     }
 
     fun autoFocus(root: TuiNode) {
-        if (_focusedId.value >= 0 && findNodeByFocusId(root, _focusedId.value) != null) return
+        if (_focusedId.value >= 0) {
+            val focused = findNodeByFocusId(root, _focusedId.value)
+            if (focused?.focusable == true) return
+        }
         _focusedId.value = collectFocusableIds(root).firstOrNull() ?: -1
     }
 
     fun findFocusedNode(root: TuiNode): TuiNode? {
         if (_focusedId.value < 0) return null
-        return findNodeByFocusId(root, _focusedId.value)
+        return findNodeByFocusId(root, _focusedId.value)?.takeIf { it.focusable }
     }
 
     private fun findNodeByFocusId(node: TuiNode, id: Int): TuiNode? {

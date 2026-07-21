@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream
 import javax.imageio.ImageIO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.CancellationException
 
 internal actual fun loadImage(
     url: String,
@@ -29,6 +30,7 @@ internal actual fun loadImage(
             }
         }
     } catch (t: Throwable) {
+        if (t is CancellationException) throw t
         emit(ImageLoadState.Failure(t.message ?: t::class.simpleName ?: "unknown"))
     }
 }
@@ -45,8 +47,11 @@ private fun decodeJvm(
     val w = resized.width
     val h = resized.height
     if (w <= 0 || h <= 0) return ImageLoadState.Failure("empty image")
-    val rgba = ByteArray(w * h * 4)
-    val argb = IntArray(w * h)
+    val pixelCountLong = w.toLong() * h.toLong()
+    if (pixelCountLong > Int.MAX_VALUE / 4L) return ImageLoadState.Failure("image is too large")
+    val pixelCount = pixelCountLong.toInt()
+    val rgba = ByteArray(pixelCount * 4)
+    val argb = IntArray(pixelCount)
     resized.getRGB(0, 0, w, h, argb, 0, w)
     var o = 0
     for (p in argb) {

@@ -36,13 +36,6 @@ class AnsiKeyDecoderTest {
     }
 
     @Test
-    fun crlfEnterIsSingleEnter() {
-        val events = decode("\r\n")
-        assertEquals(1, events.size)
-        assertEquals(Key.ENTER, (events[0] as KeyEvent).key)
-    }
-
-    @Test
     fun ctrlLetter() {
         val events = decode("\u0001\u0003\u0016") // Ctrl+A, Ctrl+C, Ctrl+V
         assertEquals(3, events.size)
@@ -151,6 +144,152 @@ class AnsiKeyDecoderTest {
     }
 
     @Test
+    fun incompletePasteFlushPreservesPossibleTerminatorPrefix() {
+        val events = decode("\u001B[200~hello\u001B[20")
+
+        assertEquals("hello\u001B[20", (events.single() as PasteEvent).text)
+    }
+
+    @Test
+    fun altTabAndAltEnterKeepTheirSemanticKeys() {
+        val events = decode("\u001B\t\u001B\r")
+
+        val tab = events[0] as KeyEvent
+        assertEquals(Key.TAB, tab.key)
+        assertTrue(tab.alt)
+        val enter = events[1] as KeyEvent
+        assertEquals(Key.ENTER, enter.key)
+        assertTrue(enter.alt)
+    }
+
+    @Test
+    fun omittedCsiParametersUseTerminalDefaults() {
+        val event = decode("\u001B[;C").single() as KeyEvent
+
+        assertEquals(Key.ARROW_RIGHT, event.key)
+        assertEquals(false, event.ctrl)
+        assertEquals(false, event.shift)
+        assertEquals(false, event.alt)
+    }
+
+    @Test
+    fun csiBackTabIsDecodedAsShiftTab() {
+        val event = decode("\u001B[Z").single() as KeyEvent
+
+        assertEquals(Key.TAB, event.key)
+        assertTrue(event.shift)
+    }
+
+    @Test
+    fun incompleteCsiFlushPreservesEveryTypedByte() {
+        val events = decode("\u001B[12;")
+
+        assertEquals(Key.ESCAPE, (events[0] as KeyEvent).key)
+        assertEquals("[12;", events.drop(1).joinToString("") { (it as KeyEvent).char.toString() })
+    }
+
+    @Test
+    fun incompleteSs3FlushPreservesIntroducer() {
+        val events = decode("\u001BO")
+
+        assertEquals(Key.ESCAPE, (events[0] as KeyEvent).key)
+        assertEquals('O', (events[1] as KeyEvent).char)
+    }
+
+    @Test
+    fun csiParameterAndIntermediateBytesDoNotLeakAsText() {
+        val events = decode("\u001B[>1;2mX\u001B[1 qY")
+
+        assertEquals(listOf('X', 'Y'), events.map { (it as KeyEvent).char })
+    }
+
+    @Test
+    fun colonSubparametersDoNotBreakModifierDecoding() {
+        val event = decode("\u001B[1;5:1C").single() as KeyEvent
+
+        assertEquals(Key.ARROW_RIGHT, event.key)
+        assertTrue(event.ctrl)
+    }
+
+    @Test
+    fun overlappingPasteTerminatorCandidateStillFindsRealTerminator() {
+        val events = decode("\u001B[200~a\u001B\u001B[201~")
+
+        assertEquals("a\u001B", (events.single() as PasteEvent).text)
+    }
+
+    @Test
+    fun ctrlSpaceAndAsciiSeparatorControlsAreMappedToShortcutCharacters() {
+        val events = decode("\u0000\u001C\u001D\u001E\u001F")
+
+        assertEquals(listOf(' ', '\\', ']', '^', '_'), events.map { (it as KeyEvent).char })
+        assertTrue(events.all { (it as KeyEvent).ctrl })
+    }
+
+    @Test
+    fun altControlShortcutsRetainBothModifiers() {
+        val events = decode("\u001B\u0000\u001B\u001C")
+
+        assertEquals(listOf(' ', '\\'), events.map { (it as KeyEvent).char })
+        assertTrue(events.all { (it as KeyEvent).ctrl && it.alt })
+    }
+
+    @Test
+    fun invalidControlByteCancelsCsiWithoutLosingInput() {
+        val events = decode("\u001B[12\nA")
+
+        assertEquals(Key.ESCAPE, (events[0] as KeyEvent).key)
+        assertEquals("[12", events.subList(1, 4).joinToString("") { (it as KeyEvent).char.toString() })
+        assertEquals(Key.ENTER, (events[4] as KeyEvent).key)
+        assertEquals('A', (events[5] as KeyEvent).char)
+    }
+
+    @Test
+    fun oversizedCsiCannotGrowDecoderBufferWithoutBound() {
+        val decoder = AnsiKeyDecoder()
+        val output = mutableListOf<InputEvent>()
+        "\u001B[${"1".repeat(65)}".forEach { output += decoder.feed(it) }
+
+        assertTrue(output.isNotEmpty())
+        assertEquals(false, decoder.hasPending())
+    }
+
+    @Test
+    fun overflowingCsiNumberIsReportedAsUnknownInsteadOfDefaultArrow() {
+        val event = decode("\u001B[999999999999999999C").single() as KeyEvent
+
+        assertEquals(Key.UNKNOWN, event.key)
+    }
+
+    @Test
+    fun unsupportedModifierValueIsReportedAsUnknown() {
+        val event = decode("\u001B[1;99C").single() as KeyEvent
+
+        assertEquals(Key.UNKNOWN, event.key)
+    }
+
+    @Test
+    fun unsupportedButCompleteSequencesProduceUnknownEvent() {
+        assertEquals(Key.UNKNOWN, (decode("\u001B[2~").single() as KeyEvent).key)
+        assertEquals(Key.UNKNOWN, (decode("\u001BOX").first() as KeyEvent).key)
+    }
+
+    @Test
+    fun eightBitCsiAndSs3IntroducersAreDecoded() {
+        val events = decode("\u009BA\u008FB")
+
+        assertEquals(Key.ARROW_UP, (events[0] as KeyEvent).key)
+        assertEquals(Key.ARROW_DOWN, (events[1] as KeyEvent).key)
+    }
+
+    @Test
+    fun crlfEnterIsSingleEnter() {
+        val events = decode("\r\n")
+        assertEquals(1, events.size)
+        assertEquals(Key.ENTER, (events[0] as KeyEvent).key)
+    }
+
+    @Test
     fun pendingStatesAreVisibleUntilSequenceIsCompletedOrFlushed() {
         val decoder = AnsiKeyDecoder()
         assertTrue(decoder.feed('\u001B').isEmpty())
@@ -165,12 +304,14 @@ class AnsiKeyDecoderTest {
     @Test
     fun incompleteCsiAndSs3FlushAsEscape() {
         val csi = decode("\u001B[1;", flushAtEnd = true)
-        assertEquals(1, csi.size)
+        assertEquals(4, csi.size)
         assertEquals(Key.ESCAPE, (csi[0] as KeyEvent).key)
+        assertEquals(listOf('[', '1', ';'), csi.drop(1).map { (it as KeyEvent).char })
 
         val ss3 = decode("\u001BO", flushAtEnd = true)
-        assertEquals(1, ss3.size)
+        assertEquals(2, ss3.size)
         assertEquals(Key.ESCAPE, (ss3[0] as KeyEvent).key)
+        assertEquals('O', (ss3[1] as KeyEvent).char)
     }
 
     @Test
@@ -212,9 +353,9 @@ class AnsiKeyDecoderTest {
     }
 
     @Test
-    fun unknownCsiAndSs3SequencesAreDropped() {
-        assertTrue(decode("\u001B[2~\u001B[99~\u001B[X").isEmpty())
-        assertTrue(decode("\u001BOX").isEmpty())
+    fun unknownCsiAndSs3SequencesProduceUnknownEvents() {
+        assertEquals(3, decode("\u001B[2~\u001B[99~\u001B[X").count { (it as KeyEvent).key == Key.UNKNOWN })
+        assertEquals(Key.UNKNOWN, (decode("\u001BOX").single() as KeyEvent).key)
     }
 
     @Test
@@ -252,15 +393,11 @@ class AnsiKeyDecoderTest {
         val events = decode("\u001B\n\u001B\t\u001BZ")
 
         val altEnter = events[0] as KeyEvent
-        assertEquals(Key.CHAR, altEnter.key)
-        assertEquals('j', altEnter.char)
-        assertTrue(altEnter.ctrl)
+        assertEquals(Key.ENTER, altEnter.key)
         assertTrue(altEnter.alt)
 
         val altTab = events[1] as KeyEvent
-        assertEquals(Key.CHAR, altTab.key)
-        assertEquals('i', altTab.char)
-        assertTrue(altTab.ctrl)
+        assertEquals(Key.TAB, altTab.key)
         assertTrue(altTab.alt)
 
         val altUpper = events[2] as KeyEvent
@@ -279,9 +416,9 @@ class AnsiKeyDecoderTest {
     }
 
     @Test
-    fun unknownCsiFinalIsDropped() {
+    fun unknownCsiFinalProducesUnknownEvent() {
         val unknownFinal = decode("\u001B[X")
-        assertTrue(unknownFinal.isEmpty())
+        assertEquals(Key.UNKNOWN, (unknownFinal.single() as KeyEvent).key)
     }
 
     @Test
@@ -328,4 +465,5 @@ class AnsiKeyDecoderTest {
         assertEquals(Key.ARROW_LEFT, (events[1] as KeyEvent).key)
         assertEquals(Key.END, (events[2] as KeyEvent).key)
     }
+
 }

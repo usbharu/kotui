@@ -6,6 +6,7 @@ import dev.usbharu.kotui.compose.applier.TuiApplier
 import dev.usbharu.kotui.compose.modifier.Modifier
 import dev.usbharu.kotui.compose.node.LayoutPolicy
 import dev.usbharu.kotui.compose.node.TuiNode
+import dev.usbharu.kotui.utils.displayWidth
 
 internal fun buildProgressText(
     progress: Float,
@@ -14,8 +15,11 @@ internal fun buildProgressText(
     filledChar: Char,
     emptyChar: Char,
 ): String {
-    val clamped = progress.coerceIn(0f, 1f)
-    val barWidth = width.coerceAtLeast(0)
+    require(width >= 0) { "progress bar width must be non-negative" }
+    require(filledChar.toString().displayWidth() == 1) { "filledChar must occupy one terminal cell" }
+    require(emptyChar.toString().displayWidth() == 1) { "emptyChar must occupy one terminal cell" }
+    val clamped = if (progress.isNaN()) 0f else progress.coerceIn(0f, 1f)
+    val barWidth = width
     val filledCount = (clamped * barWidth).toInt().coerceIn(0, barWidth)
     val emptyCount = barWidth - filledCount
     val percent = (clamped * 100).toInt()
@@ -42,14 +46,14 @@ fun ProgressBar(
     modifier: Modifier = Modifier,
 ) {
     val rendered = buildProgressText(progress, width, showPercent, filledChar, emptyChar)
-    val intrinsicWidth = rendered.length
+    val intrinsicWidth = rendered.displayWidth()
 
     ComposeNode<TuiNode, TuiApplier>(
         factory = { TuiNode("ProgressBar").apply { layoutPolicy = LayoutPolicy.LEAF; preferredHeight = 1 } },
         update = {
             set(rendered) { text = it }
             set(intrinsicWidth) { preferredWidth = it }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         }
     )
 }

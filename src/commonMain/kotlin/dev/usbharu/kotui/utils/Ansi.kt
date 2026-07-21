@@ -23,11 +23,19 @@ object Ansi {
     const val CURSOR_SAVE = "${CSI}s"
     const val CURSOR_RESTORE = "${CSI}u"
 
-    fun cursorTo(row: Int, col: Int): String = "$CSI$row;${col}H"
-    fun cursorUp(n: Int = 1): String = "$CSI${n}A"
-    fun cursorDown(n: Int = 1): String = "$CSI${n}B"
-    fun cursorForward(n: Int = 1): String = "$CSI${n}C"
-    fun cursorBack(n: Int = 1): String = "$CSI${n}D"
+    fun cursorTo(row: Int, col: Int): String {
+        require(row >= 1 && col >= 1) { "cursor coordinates are one-based" }
+        return "$CSI$row;${col}H"
+    }
+    fun cursorUp(n: Int = 1): String = cursorMove(n, 'A')
+    fun cursorDown(n: Int = 1): String = cursorMove(n, 'B')
+    fun cursorForward(n: Int = 1): String = cursorMove(n, 'C')
+    fun cursorBack(n: Int = 1): String = cursorMove(n, 'D')
+
+    private fun cursorMove(n: Int, command: Char): String {
+        require(n >= 0) { "cursor distance must be non-negative" }
+        return "$CSI$n$command"
+    }
 
     // Style
     const val RESET = "${CSI}0m"
@@ -83,10 +91,18 @@ object Ansi {
     const val BG_BRIGHT_WHITE = "${CSI}107m"
 
     // 256-color / RGB
-    fun fg256(n: Int): String = "${CSI}38;5;${n}m"
-    fun bg256(n: Int): String = "${CSI}48;5;${n}m"
-    fun fgRgb(r: Int, g: Int, b: Int): String = "${CSI}38;2;$r;$g;${b}m"
-    fun bgRgb(r: Int, g: Int, b: Int): String = "${CSI}48;2;$r;$g;${b}m"
+    fun fg256(n: Int): String { requireByte(n); return "${CSI}38;5;${n}m" }
+    fun bg256(n: Int): String { requireByte(n); return "${CSI}48;5;${n}m" }
+    fun fgRgb(r: Int, g: Int, b: Int): String { requireRgb(r, g, b); return "${CSI}38;2;$r;$g;${b}m" }
+    fun bgRgb(r: Int, g: Int, b: Int): String { requireRgb(r, g, b); return "${CSI}48;2;$r;$g;${b}m" }
+
+    private fun requireByte(value: Int) {
+        require(value in 0..255) { "color component must be in 0..255" }
+    }
+
+    private fun requireRgb(r: Int, g: Int, b: Int) {
+        requireByte(r); requireByte(g); requireByte(b)
+    }
 
     // Bracketed paste mode. When enabled, pasted text is wrapped with
     // ESC[200~ and ESC[201~ so the TUI can treat it as a single paste event.

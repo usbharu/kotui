@@ -22,6 +22,7 @@ fun Checkbox(
 
     val displayText = InteractiveWidgetOps.checkboxText(checked, label, isFocused)
     val toggle: () -> Unit = { onCheckedChange(!checked) }
+
     val focusStyled = InteractiveWidgetOps.focusStyled(modifier)
 
     ComposeNode<TuiNode, TuiApplier>(
@@ -38,15 +39,10 @@ fun Checkbox(
             set(toggle) { cb ->
                 onActivate = cb
                 onKeyEvent = { ev ->
-                    if (InteractiveWidgetOps.isActivate(ev)) {
-                        cb()
-                        true
-                    } else {
-                        false
-                    }
+                    if (InteractiveWidgetOps.isActivate(ev)) { cb(); true } else false
                 }
             }
-            set(focusStyled) { applyModifier(it) }
+            reconcile { applyModifier(focusStyled) }
         },
     )
 }

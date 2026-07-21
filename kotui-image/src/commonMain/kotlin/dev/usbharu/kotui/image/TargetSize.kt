@@ -11,6 +11,7 @@ internal fun computeTargetSize(
     maxWidth: Int?,
     maxHeight: Int?,
 ): TargetSize {
+    require(width > 0 && height > 0) { "source dimensions must be positive" }
     val limitW = maxWidth?.takeIf { it > 0 } ?: Int.MAX_VALUE
     val limitH = maxHeight?.takeIf { it > 0 } ?: Int.MAX_VALUE
     if (width <= limitW && height <= limitH) return TargetSize(width, height)

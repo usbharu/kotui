@@ -38,13 +38,14 @@ fun TextArea(
     onSubmit: (() -> Unit)? = null,
     enableEditing: Boolean = true,
 ) {
+    require('\r' !in value) { "TextArea value must use \\n line separators" }
     val focusManager = LocalFocusManager.current
     val clipboard = LocalClipboard.current
     val focusId = remember { focusManager.allocateFocusId() }
     val isFocused = focusManager.isFocused(focusId)
 
     val cursorState = remember { mutableStateOf(value.length) }
-    val safeCursor = cursorState.value.coerceIn(0, value.length)
+    val safeCursor = TextEditOps.clampToBoundary(value, cursorState.value)
     if (safeCursor != cursorState.value) cursorState.value = safeCursor
 
     // Column-preservation for up/down navigation: remember the visual column
@@ -88,7 +89,7 @@ fun TextArea(
                     } else false
                 }
             }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         },
         content = {
             // Each logical line becomes a leaf Text child. An empty last line
@@ -117,13 +118,14 @@ private data class TextAreaBindings(
 )
 
 private fun moveCursor(b: TextAreaBindings, newPos: Int, preserveColumn: Boolean = false) {
-    val clamped = newPos.coerceIn(0, b.value.length)
+    val clamped = TextEditOps.clampToBoundary(b.value, newPos)
     b.cursor.value = clamped
     if (!preserveColumn) b.preferredCol.value = null
 }
 
 private fun insertText(b: TextAreaBindings, insert: String) {
-    val (newValue, newCursor) = TextEditOps.replace(b.value, b.cursor.value, null, insert)
+    val normalizedInsert = normalizeMultilinePaste(insert)
+    val (newValue, newCursor) = TextEditOps.replace(b.value, b.cursor.value, null, normalizedInsert)
     b.cursor.value = newCursor
     b.preferredCol.value = null
     b.onValueChange(newValue)
@@ -275,14 +277,14 @@ private fun handleKey(b: TextAreaBindings, event: KeyEvent): Boolean {
  */
 internal object TextAreaOps {
     fun lineStart(value: String, cursor: Int): Int {
-        val c = cursor.coerceIn(0, value.length)
+        val c = TextEditOps.clampToBoundary(value, cursor)
         var i = c
         while (i > 0 && value[i - 1] != '\n') i--
         return i
     }
 
     fun lineEnd(value: String, cursor: Int): Int {
-        val c = cursor.coerceIn(0, value.length)
+        val c = TextEditOps.clampToBoundary(value, cursor)
         var i = c
         while (i < value.length && value[i] != '\n') i++
         return i
@@ -290,7 +292,7 @@ internal object TextAreaOps {
 
     /** Returns (row, col) of the cursor, col expressed in terminal display cells. */
     fun cursorToRowCol(value: String, cursor: Int): Pair<Int, Int> {
-        val c = cursor.coerceIn(0, value.length)
+        val c = TextEditOps.clampToBoundary(value, cursor)
         var row = 0
         var lineStart = 0
         for (i in 0 until c) {
@@ -325,10 +327,11 @@ internal object TextAreaOps {
         // hit a newline / EOF.
         var col = 0
         var p = lineStart
-        while (p < value.length && value[p] != '\n' && col < targetCol) {
+        val safeTargetCol = targetCol.coerceAtLeast(0)
+        while (p < value.length && value[p] != '\n' && col < safeTargetCol) {
             val next = TextEditOps.nextCodePoint(value, p)
             val w = value.substring(p, next).displayWidth()
-            if (col + w > targetCol) break
+            if (col + w > safeTargetCol) break
             col += w
             p = next
         }

@@ -23,7 +23,7 @@ fun Column(
             set(gap) { layoutGap = it }
             set(justifyContent) { this.justifyContent = it }
             set(alignItems) { this.alignItems = it }
-            set(modifier) { applyModifier(it) }
+            reconcile { applyModifier(modifier) }
         },
         content = content,
     )
