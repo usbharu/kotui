@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 plugins {
     kotlin("multiplatform") version "2.3.10"
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
-    id("org.jetbrains.kotlinx.kover") version "0.9.8"
+    id("org.jetbrains.kotlinx.kover") version "0.9.11"
 }
 
 group = "dev.usbharu"
