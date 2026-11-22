@@ -55,12 +55,12 @@ kotlin {
         }
 
         jvmMain.dependencies {
-            implementation("com.github.skydoves:landscapist-core:2.9.7")
+            implementation("com.github.skydoves:landscapist-core:2.13.2")
         }
 
         val macosArm64Main by getting {
             dependencies {
-                implementation("com.github.skydoves:landscapist-core:2.9.7")
+                implementation("com.github.skydoves:landscapist-core:2.13.2")
             }
         }
 
