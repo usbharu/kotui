@@ -49,7 +49,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation("org.jetbrains.compose.runtime:runtime:1.8.0")
+            implementation("org.jetbrains.compose.runtime:runtime:1.12.2")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
         }
         commonTest.dependencies {

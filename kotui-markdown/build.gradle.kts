@@ -36,7 +36,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":"))
-            implementation("org.jetbrains.compose.runtime:runtime:1.8.0")
+            implementation("org.jetbrains.compose.runtime:runtime:1.12.2")
             implementation("dev.usbharu:markdown-kt:1.1.0-SNAPSHOT")
         }
         commonTest.dependencies {
