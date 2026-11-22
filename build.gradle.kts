@@ -8,7 +8,7 @@ import org.w3c.dom.Element
 import javax.xml.parsers.DocumentBuilderFactory
 
 plugins {
-    kotlin("multiplatform") version "2.3.10"
+    kotlin("multiplatform") version "2.4.21"
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
     id("org.jetbrains.kotlinx.kover") version "0.9.11"
 }
