@@ -48,7 +48,7 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":"))
             implementation("org.jetbrains.compose.runtime:runtime:1.8.0")
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
