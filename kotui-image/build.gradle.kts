@@ -15,7 +15,7 @@ repositories {
     google()
 }
 
-val ktorVersion = "3.4.3"
+val ktorVersion = "3.6.2"
 val korimVersion = "4.0.10"
 val hostFamily = when {
     System.getProperty("os.name").contains("Windows", ignoreCase = true) -> Family.MINGW
